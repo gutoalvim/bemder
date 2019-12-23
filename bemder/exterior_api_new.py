@@ -5,6 +5,8 @@ import numpy as np
 
 from matplotlib import pylab as plt
 
+bempp.api.PLOT_BACKEND = "gmsh"
+
 
 
 bempp.api.show_available_platforms_and_devices()
@@ -58,7 +60,7 @@ class ExteriorBEM:
 
     """
     #then = time.time()
-    def __init__(self,space,f_range,r0,q,mu,v,c0=343,rho0=1.21):
+    def __init__(self,space,f_range,r0,q,mu,v=0,c0=343,rho0=1.21):
         self.space = space
         self.f_range = f_range
         self.r0 = r0
@@ -97,9 +99,6 @@ class ExteriorBEM:
             def v_data(x,n,domain_index,result):
                 result[0] = self.v[domain_index][fi]
             
-            @bempp.api.complex_callable
-            def combined_data(x, n, domain_index, result):
-                result[0] = 1j * k * np.exp(1j * k * x[0]) * (n[0]-1)
                 
             
             mu_op_r = bempp.api.MultiplicationOperator(bempp.api.GridFunction(self.space,fun=mu_fun_r),self.space,self.space,self.space)
@@ -198,9 +197,189 @@ class ExteriorBEM:
             lhs = (.5 * identity - dlp + 1j*k*slp*(mu_op_r+1j*mu_op_i)) 
             rhs = slp * monopole_fun
         
-            boundP, info = bempp.api.linalg.gmres(lhs, rhs, tol=1E-5, use_strong_form=True)
+            boundP, info = bempp.api.linalg.iterative_solver.gmres(lhs, rhs, tol=1E-5, use_strong_form=True)
         
             boundU = 1j*(mu_op_r+1j*mu_op_i)*k*boundP - monopole_fun
+            
+            p[fi] = boundP
+            u[fi] = boundU
+            
+            
+            print('{} / {}'.format(fi+1,np.size(self.f_range)))
+        return p,u
+    
+    
+    def burton_bemsolve(self):
+        """
+        Computes the bempp gridFunctions for the interior acoustic problem.
+        
+        Outputs: 
+            
+            boundP = grid_function for boundary pressure
+            
+            boundU = grid_function for boundary velocity
+        
+        """
+        
+        p = {}
+        u ={}
+        mu_fi = np.array([self.mu[i] for i in self.mu.keys()])
+        r0_fi = np.array([self.r0[i] for i in self.r0.keys()])
+        q_fi = np.array([self.q[i] for i in self.q.keys()])
+        
+        for fi in range(np.size(self.f_range)):
+            
+
+
+            f = self.f_range[fi] #Convert index to frequency
+            k = 2*np.pi*f/self.c0 # Calculate wave number
+            
+            @bempp.api.real_callable(jit=False)
+            def mu_fun_r(x,n,domain_index,result):
+                result[0]=np.real(mu_fi[domain_index-1,fi])
+                
+            @bempp.api.real_callable(jit=False)
+            def mu_fun_i(x,n,domain_index,result):
+                result[0]=np.imag(mu_fi[domain_index-1,fi])
+
+#            @bempp.api.real_callable(jit=False)
+#            def v_data(x,n,domain_index,result):
+#                result[0]=0
+#                result[0] = self.v[domain_index][fi]*(n[0]-1)
+            
+            mu_op_r = bempp.api.MultiplicationOperator(bempp.api.GridFunction(self.space,fun=mu_fun_r),self.space,self.space,self.space)
+            mu_op_i = bempp.api.MultiplicationOperator(bempp.api.GridFunction(self.space,fun=mu_fun_i),self.space,self.space,self.space)
+        
+            identity = bempp.api.operators.boundary.sparse.identity(
+                self.space, self.space, self.space)
+            dlp = bempp.api.operators.boundary.helmholtz.double_layer(
+                self.space, self.space, self.space, k)
+            adlp = bempp.api.operators.boundary.helmholtz.adjoint_double_layer(
+                self.space, self.space, self.space, k)
+            slp = bempp.api.operators.boundary.helmholtz.single_layer(
+                self.space, self.space, self.space, k)
+            
+            hyp = bempp.api.operators.boundary.helmholtz.hypersingular(
+                self.space, self.space, self.space, k)
+            
+            @bempp.api.complex_callable(jit=False)
+            def monopole_data(r, n, domain_index, result):
+                result[0]=0
+                for i in range(len(q_fi)):
+                    pos = np.linalg.norm(r-r0_fi[i])
+                    val  = q_fi[i]*np.exp(1j*k*pos)/(4*np.pi*pos)
+                    result[0] +=  -(1j*mu_fi[domain_index-1,fi]*k*val - val/(pos*pos) * (1j*k*pos-1)* np.dot(r-r0_fi[i],n))
+
+                      
+                
+            monopole_fun = bempp.api.GridFunction(self.space, fun=monopole_data)
+#            v_fun = bempp.api.GridFunction(self.space, fun=v_data)
+
+        
+            A = 0.5*identity + adlp - 1j*k*slp*(mu_op_r+1j*mu_op_i)
+            B = hyp + 1j*k*(0.5*identity - dlp)*(mu_op_r+1j*mu_op_i)
+            
+            
+            # Ar = -slp*(monopole_fun)# + 1j*self.rho0*self.c0*v_fun)
+#            Br = (0.5*identity + adlp)*monopole_fun
+            
+            lhs = B + (1j/k)*A
+            rhs = monopole_fun
+
+        
+        
+            boundP, info = bempp.api.linalg.gmres(lhs, rhs, tol=1E-3)
+        
+            boundU = 1j*(mu_op_r+1j*mu_op_i)*k*boundP + monopole_fun# + 1j*self.rho0*self.c0*v_fun
+            
+            p[fi] = boundP
+            u[fi] = boundU
+            
+            
+            print('{} / {}'.format(fi+1,np.size(self.f_range)))
+        return p,u    
+    def helmholtz_bemsolve(self):
+        """
+        Computes the bempp gridFunctions for the interior acoustic problem.
+        
+        Outputs: 
+            
+            boundP = grid_function for boundary pressure
+            
+            boundU = grid_function for boundary velocity
+        
+        """
+        
+        p = {}
+        u ={}
+        mu_fi = np.array([self.mu[i] for i in self.mu.keys()])
+        r0_fi = np.array([self.r0[i] for i in self.r0.keys()])
+        q_fi = np.array([self.q[i] for i in self.q.keys()])
+        
+        for fi in range(np.size(self.f_range)):
+            
+
+
+            f = self.f_range[fi] #Convert index to frequency
+            k = 2*np.pi*f/self.c0 # Calculate wave number
+            
+            @bempp.api.real_callable(jit=False)
+            def mu_fun_r(x,n,domain_index,result):
+                result[0]=np.real(mu_fi[domain_index-1,fi])
+                
+            @bempp.api.real_callable(jit=False)
+            def mu_fun_i(x,n,domain_index,result):
+                result[0]=np.imag(mu_fi[domain_index-1,fi])
+
+#            @bempp.api.real_callable(jit=False)
+#            def v_data(x,n,domain_index,result):
+#                result[0]=0
+#                result[0] = self.v[domain_index][fi]*(n[0]-1)
+            
+            mu_op_r = bempp.api.MultiplicationOperator(bempp.api.GridFunction(self.space,fun=mu_fun_r),self.space,self.space,self.space)
+            mu_op_i = bempp.api.MultiplicationOperator(bempp.api.GridFunction(self.space,fun=mu_fun_i),self.space,self.space,self.space)
+        
+            identity = bempp.api.operators.boundary.sparse.identity(
+                self.space, self.space, self.space)
+            dlp = bempp.api.operators.boundary.helmholtz.double_layer(
+                self.space, self.space, self.space, k)
+#            adlp = bempp.api.operators.boundary.helmholtz.adjoint_double_layer(
+#                self.space, self.space, self.space, k)
+            slp = bempp.api.operators.boundary.helmholtz.single_layer(
+                self.space, self.space, self.space, k)
+            
+#            hyp = bempp.api.operators.boundary.helmholtz.hypersingular(
+#                self.space, self.space, self.space, k)
+            
+            @bempp.api.complex_callable(jit=False)
+            def monopole_data(r, n, domain_index, result):
+                result[0]=0
+                for i in range(len(q_fi)):
+                    pos = np.linalg.norm(r-r0_fi[i])
+                    val  = q_fi[i]*np.exp(1j*k*pos)/(4*np.pi*pos)
+                    result[0] +=  (1j*mu_fi[domain_index-1,fi]*k*val + val/(pos*pos) * (1j*k*pos-1)* np.dot(r-r0_fi[i],n))
+
+                      
+                
+            monopole_fun = bempp.api.GridFunction(self.space, fun=monopole_data)
+#            v_fun = bempp.api.GridFunction(self.space, fun=v_data)
+
+        
+            A = 0.5*identity - dlp - 1j*k*slp*(mu_op_r+1j*mu_op_i)
+#            B = hyp + 1j*k*(0.5*identity - adlp)*(mu_op_r+1j*mu_op_i)
+            
+            
+            Ar = -slp*(monopole_fun)# + 1j*self.rho0*self.c0*v_fun)
+#            Br = (0.5*identity + adlp)*monopole_fun
+            
+            lhs = A
+            rhs = Ar
+
+        
+        
+            boundP, info = bempp.api.linalg.gmres(lhs, rhs, tol=1E-8,use_strong_form=True)
+        
+            boundU = 1j*(mu_op_r+1j*mu_op_i)*k*boundP + monopole_fun# + 1j*self.rho0*self.c0*v_fun
             
             p[fi] = boundP
             u[fi] = boundU
@@ -247,7 +426,7 @@ class ExteriorBEM:
                 self.space, pts.T, k)
             dlp_pot = bempp.api.operators.potential.helmholtz.double_layer(
                 self.space, pts.T, k)
-            pScat =  (slp_pot * boundU[fi] + dlp_pot * boundP[fi])
+            pScat =  (slp_pot * boundU[fi] - dlp_pot * boundP[fi])
             
             pInc = self.monopole(fi,pts)
             
@@ -258,7 +437,7 @@ class ExteriorBEM:
             
         return  np.array([pT[i] for i in pT.keys()]).reshape(len(pT),len(points))
     
-    def grid_evaluate(self,fi,plane,d,grid_size,n_grid_pts,boundP,boundU,savename=None):
+    def grid_evaluate(self,fi,plane,d,grid_size,n_grid_pts,boundP,boundU,ylimit,savename=None):
         
         """
         Evaluates and plots the SPL in symmetrical grid for a mesh centered at [0,0,0].
@@ -282,35 +461,12 @@ class ExteriorBEM:
         pT = {}
         
         k = 2*np.pi*self.f_range[fi]/self.c0
+        ymin = ylimit[0]
+        ymax = ylimit[1]
         
         if plane == 'xy':
             n_grid_points = n_grid_pts
             plot_grid = np.mgrid[-grid_size[0]/2:grid_size[0]/2:n_grid_points*1j, -grid_size[1]/2:grid_size[1]/2:n_grid_points*1j]
-            grid_pts = np.vstack((plot_grid[0].ravel(),plot_grid[1].ravel(),d+np.zeros(plot_grid[0].size)))
-                          
-            
-            
-            slp_pot = bempp.api.operators.potential.helmholtz.single_layer(
-                self.space, grid_pts, k)
-            dlp_pot = bempp.api.operators.potential.helmholtz.double_layer(
-                self.space, grid_pts, k)
-            pScat =  (slp_pot * boundU[fi] + dlp_pot * boundP[fi])
-            
-            pInc = self.monopole(fi,grid_pts.T)
-            
-            grid_pT = np.conj(pScat+pInc)
-            
-            pT[fi] = grid_pT.reshape((n_grid_points,n_grid_points))
-            
-            plt.imshow(20*np.log10(np.abs(pT[fi].T)/2e-5), extent=(0,grid_size[0],0,grid_size[1]),  cmap='jet')
-            plt.colorbar()
-            plt.show()
-            
-            return grid_pT
-
-        if plane == 'xy_c':
-            n_grid_points = n_grid_pts
-            plot_grid = np.mgrid[grid_size[0]:0:n_grid_points*1j, grid_size[1]:0:n_grid_points*1j]
             grid_pts = np.vstack((plot_grid[0].ravel(),plot_grid[1].ravel(),d+np.zeros(plot_grid[0].size)))
                           
             
@@ -336,8 +492,44 @@ class ExteriorBEM:
                 ax = plt.Axes(fig, [0., 0., 1., 1.])
                 ax.set_axis_off()
                 fig.add_axes(ax)
-                plt.imshow(20*np.log10(np.abs(pT[fi].T)/2e-5), extent=(0,grid_size[0],0,grid_size[1]),cmap='jet')
-                plt.savefig('plane.png',dpi=500)
+                plt.imshow(20*np.log10(np.abs(pT[fi].T)/2e-5), extent=(0,grid_size[0],0,grid_size[1]),cmap='jet',vmin=ymin, vmax=ymax)    
+                plt.savefig('plane_xy.png',dpi=500)
+                plt.show()
+            
+            return grid_pT
+
+        if plane == 'xy_c':
+            n_grid_points = n_grid_pts
+            plot_grid = np.mgrid[grid_size[0]:0:n_grid_points*1j, grid_size[1]:0:n_grid_points*1j]
+            grid_pts = np.vstack((plot_grid[0].ravel(),plot_grid[1].ravel(),d+np.zeros(plot_grid[0].size)))
+                          
+            
+            
+            slp_pot = bempp.api.operators.potential.helmholtz.single_layer(
+                self.space, grid_pts, k)
+            dlp_pot = bempp.api.operators.potential.helmholtz.double_layer(
+                self.space, grid_pts, k)
+            pScat =  (slp_pot * boundU[fi] + dlp_pot * boundP[fi])
+            
+            pInc = self.monopole(fi,grid_pts.T)
+            
+            grid_pT = np.conj(pScat+pInc)
+            
+            pT[fi] = grid_pT.reshape((n_grid_points,n_grid_points))
+            
+            if savename == None:
+                plt.imshow(20*np.log10(np.abs(pT[fi].T)/2e-5), extent=(0,grid_size[0],0,grid_size[1]),  cmap='jet',vmin=ymin, vmax=ymax)
+                plt.colorbar()
+                plt.savefig('colorbar.png',dpi=500)
+
+                plt.show()
+            else:
+                fig = plt.figure(frameon=False)
+                ax = plt.Axes(fig, [0., 0., 1., 1.])
+                ax.set_axis_off()
+                fig.add_axes(ax)
+                plt.imshow(20*np.log10(np.abs(pT[fi].T)/2e-5), cmap='jet',vmin=ymin, vmax=ymax)
+                plt.savefig('plane_xy.png',dpi=500)
                 plt.show()
             return grid_pT
         
@@ -387,16 +579,20 @@ class ExteriorBEM:
             if savename == None:
                 plt.imshow(20*np.log10(np.abs(pT[fi].T)/2e-5), extent=(-grid_size[0]/2,grid_size[0]/2,0,grid_size[1]),  cmap='jet')
                 plt.colorbar()
+                plt.savefig('colorbar.png',dpi=500)
+
                 plt.show()
             else:
                 fig = plt.figure(frameon=False)
                 ax = plt.Axes(fig, [0., 0., 1., 1.])
                 ax.set_axis_off()
                 fig.add_axes(ax)
-                plt.imshow(20*np.log10(np.abs(pT[fi].T)/2e-5),cmap='jet')
-                plt.savefig('plane.png',dpi=500)
+                plt.imshow(20*np.log10(np.abs(pT[fi].T)/2e-5),cmap='jet',vmin=ymin, vmax=ymax)    
+                plt.savefig('plane_xz.png',dpi=500)
                 plt.show()
             return grid_pT
+        
+
         if plane == 'xz':
             n_grid_points = n_grid_pts
             plot_grid = np.mgrid[-grid_size[0]/2:grid_size[0]/2:n_grid_points*1j, -grid_size[1]/2:grid_size[1]/2:n_grid_points*1j]
@@ -457,7 +653,7 @@ class ExteriorBEM:
                 ax = plt.Axes(fig, [0., 0., 1., 1.])
                 ax.set_axis_off()
                 fig.add_axes(ax)
-                plt.imshow(20*np.log10(np.abs(pT[fi].T)/2e-5), extent=(0,grid_size[0],0,grid_size[1]),cmap='jet')
+                plt.imshow(20*np.log10(np.abs(pT[fi].T)/2e-5), extent=(0,grid_size[0],0,grid_size[1]),cmap='jet',vmin = ymin, vmax=ymax)
                 plt.savefig('%s.png'%savename,dpi=500)
                 plt.show()
             return grid_pT
@@ -494,6 +690,40 @@ class ExteriorBEM:
                 plt.show()
             
             return grid_pT
+        
+        if plane == 'yz_c':
+            n_grid_points = n_grid_pts
+            plot_grid = np.mgrid[-grid_size[0]/2:grid_size[0]/2:n_grid_points*1j, grid_size[1]:0:n_grid_points*1j]
+            grid_pts = np.vstack((d+np.zeros(plot_grid[0].size),plot_grid[0].ravel(),plot_grid[1].ravel()))
+                          
+            
+            
+            slp_pot = bempp.api.operators.potential.helmholtz.single_layer(
+                self.space, grid_pts, k)
+            dlp_pot = bempp.api.operators.potential.helmholtz.double_layer(
+                self.space, grid_pts, k)
+            pScat =  (slp_pot * boundU[fi] + dlp_pot * boundP[fi])
+            
+            pInc = self.monopole(fi,grid_pts.T)
+            
+            grid_pT = np.conj(pScat+pInc)
+            
+            pT[fi] = grid_pT.reshape((n_grid_points,n_grid_points))
+            
+            if savename == None:
+                plt.imshow(20*np.log10(np.abs(pT[fi].T)/2e-5), extent=(-grid_size[0]/2,grid_size[0]/2,0,grid_size[1]), cmap='jet')
+                plt.colorbar()
+                plt.show()
+            else:
+                fig = plt.figure(frameon=False)
+                ax = plt.Axes(fig, [0., 0., 1., 1.])
+                ax.set_axis_off()
+                fig.add_axes(ax)
+                plt.imshow(20*np.log10(np.abs(pT[fi].T)/2e-5),cmap='jet',extent=(-grid_size[0]/2,grid_size[0]/2,0,grid_size[1]),vmin = ymin, vmax=ymax)
+                plt.savefig('plane_yz.png',dpi=500)
+                plt.show()
+            return grid_pT
+        
         if plane == 'zx':
             n_grid_points = n_grid_pts
             plot_grid = np.mgrid[-grid_size[1]/2:grid_size[1]/2:n_grid_points*1j, -grid_size[0]/2:grid_size[0]/2:n_grid_points*1j]
@@ -512,7 +742,8 @@ class ExteriorBEM:
             grid_pT = np.conj(pInc+pScat)
             
             pT[fi] = grid_pT.reshape((n_grid_points,n_grid_points))
-            
+
+
             plt.imshow(20*np.log10(np.abs(pT[fi].T)/2e-5), extent=(0,grid_size[1],0,grid_size[0]),  cmap='jet')
             plt.colorbar()
             plt.show()

@@ -2,7 +2,7 @@
 import bempp.api
 import numpy as np
 import bemder.porous as porous
-from bemder.room_api import RoomBEM
+from bemder.interior_api import RoomBEM
 import matplotlib.pyplot as plt
 from matplotlib import style
 style.use("seaborn-talk")
@@ -18,7 +18,7 @@ grid = bempp.api.import_grid('Mshs/'+filename)
 
 #Defining frequencies of analysis 
 f1= 20
-f2 = 100
+f2 = 200
 df = 10
 f_range = np.arange(f1,f2+df,df)
 
@@ -39,13 +39,19 @@ mu[1] = np.zeros_like(mud2)
 
 
 points = {}
-points[0] = np.array([0.6,0,-0.15])
-points[1] = np.array([0.6,0.2,-0.15])
+#points[0] = np.array([0.6,0,-0.15])
+#points[1] = np.array([0.6,0.2,-0.15])
+
+points[0] = np.array([0,0.1,-0.15])
+#points[1] = np.array([0.6,0.2,-0.15])
 
 
 r0 = {}
-r0[0] =  np.array([1.4,0.7,-0.35])
-r0[1] = np.array([1.4,-0.7,-0.35])
+#r0[0] =  np.array([1.4,0.7,-0.35])
+#r0[1] = np.array([1.4,-0.7,-0.35])
+
+r0[0] =  np.array([0.62,1,-0.35])
+r0[1] = np.array([-0.62,1,-0.35])
 
 q = {}
 q[0] = 1
@@ -71,7 +77,7 @@ s1 = RoomBEM(space,f_range,r0,q,mu,c0)
 
 p,u = s1.bemsolve()
 #%%
-pT = s1.grid_evaluate(0,'xy',d,grid_size,n_grid_pts,p,u)
+pT = s1.grid_evaluate(14,'xy',d,grid_size,n_grid_pts,p,u)
 
 pTT = s1.point_evaluate(points,p,u)
 

@@ -5,7 +5,7 @@ import pandas as pd
 import bempp.api
 import numpy as np
 import bemder.porous as porous
-from bemder.room_api import RoomBEM
+from bemder.interior_api import RoomBEM
 
 #% Defining constants
 c0 = 343 #Speed ou sound
@@ -18,8 +18,8 @@ grid = bempp.api.import_grid('Mshs/'+filename)
 
 #Defining frequencies of analysis 
 f1= 20
-f2 = 150
-df = 2
+f2 = 124
+df = 10
 f_range = np.arange(f1,f2+df,df)
 
 #Defining Surface admittance
@@ -53,7 +53,7 @@ q[1] = 1
 
 #% Defining grid plot properties 
 plane = 'xz'
-d = 0
+d = 1.2
 
 grid_size = [3.5,4]
 
@@ -70,6 +70,10 @@ s1 = RoomBEM(space,f_range,r0,q,mu,c0)
 
 p,u = s1.bemsolve()
 
+#%%
+
+pt = s1.grid_evaluate(4,plane,d,grid_size,n_grid_pts,p,u)
+#%%
 pT = s1.point_evaluate(points,p,u)
 
 #%% Plot Comparison between Bempp and Validation

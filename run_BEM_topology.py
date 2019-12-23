@@ -1,24 +1,28 @@
 #%% Import Packages and define simulation
 
 import matplotlib.pyplot as plt
+from matplotlib import style
+style.use("seaborn-talk")
 import pandas as pd
 import bempp.api
 import numpy as np
 import bemder.porous as porous
-from bemder.room_api import RoomBEM
+from bemder.interior_api import RoomBEM
+
+bempp.api.PLOT_BACKEND = "gmsh"
 
 #% Defining constants
 c0 = 343 #Speed ou sound
 rho0 = 1.21 #Air density
 
-
-#% Load mesh
+#% Load mesh and import
 filename = 'topology.msh'
 grid = bempp.api.import_grid('Mshs/'+filename)
+space = bempp.api.function_space(grid, "DP", 0)
 
 #Defining frequencies of analysis 
-f1= 20
-f2 = 150
+f1= 58
+f2 = 58
 df = 2
 f_range = np.arange(f1,f2+df,df)
 
@@ -31,45 +35,41 @@ mud1 = np.complex128(rho0*c0/np.conj(zsd1))
 mud2 = np.complex128(rho0*c0/np.conj(zsd2))
 mud3 = np.complex128(rho0*c0/np.conj(zsd3))
 
-mu = {}
 
+#Atribute admittance to every domain index
+mu = {}
 mu[1] = mud1
 mu[2] = mud2
 mu[3] = mud3
 
-
+#Receiver coords
 points = {}
 points[0] = np.array([0.5,1.5,1.2])
 #points[1] = np.array([0.6,0.2,-0.15])
 
-
+#Source coords
 r0 = {}
 r0[0] =  np.array([-0.5,4,1.2])
 #r0[1] = np.array([1.4,-0.7,-0.35])
 
+#Source Strength
 q = {}
 q[0] = 1
 #q[1] = 1
 
 #% Defining grid plot properties 
 plane = 'xy'
-d = 0
-
-grid_size = [0,6,-3,3]
-
+d = 1.2
+grid_size = [6,6]
 n_grid_pts = 250
 
-
-
-space = bempp.api.function_space(grid, "DP", 0)
-
-
 #%% Solve BEM
-
 s1 = RoomBEM(space,f_range,r0,q,mu,c0)
-
 p,u = s1.bemsolve()
+#%% Plot Pressure Field
+gplot = s1.grid_evaluate(0,plane,d,grid_size,n_grid_pts,p,u,savename='johnsons')
 
+#%% Calculate pressure for Receivers (Points)
 pT = s1.point_evaluate(points,p,u)
 
 #%% Plot Comparison between Bempp and Validation

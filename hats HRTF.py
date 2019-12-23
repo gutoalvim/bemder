@@ -5,7 +5,7 @@ import pandas as pd
 import bempp.api
 import numpy as np
 import bemder.porous as porous
-from bemder.exterior_api import ExteriorBEM
+from bemder.exterior_api_new import ExteriorBEM
 
 #% Defining constants
 c0 = 343 #Speed ou sound
@@ -17,8 +17,8 @@ filename = 'hats_hrtf.msh'
 grid = bempp.api.import_grid('Mshs/'+filename)
 space = bempp.api.function_space(grid, "DP", 0)
 #Defining frequencies of analysis 
-f1= 250
-f2 = 250
+f1= 1000
+f2 = 1000
 df = 10
 f_range = np.arange(f1,f2+df,df)
 
@@ -82,7 +82,7 @@ n_grid_pts = 500
 
 s1 = ExteriorBEM(space,f_range,r0,q,mu,v)
 
-p,u = s1.velocity_bemsolve()
+p,u = s1.helmholtz_bemsolve()
 
 #%%
 #pT = s1.grid_evaluate(0,plane,d,grid_size,n_grid_pts,p,u)
@@ -90,11 +90,11 @@ p,u = s1.velocity_bemsolve()
 pt_T = s1.point_evaluate(points,p,u)
 
 #%% Plot Comparison between Bempp and Validation
-data = pd.read_csv('Data/hrtf_250.csv', sep=",", header=None)
+data = pd.read_csv('Data/hrtf_1k.csv', sep=",", header=None)
 data.columns = ["theta","spl"]
 
-plt.polar(data.theta+np.pi/2, data.spl)
-plt.polar((theta), 20*np.log10(np.abs(pt_T)/2e-5).reshape(len(theta),1))
+plt.polar(data.theta+np.pi/2, data.spl-14)
+plt.polar(np.pi+(theta), 20*np.log10(np.abs(pt_T)/2e-5).reshape(len(theta),1))
 plt.ylim([40,50])
 plt.legend(['validarion_r1','bempp_r1'])
 plt.savefig('exterior_eric_r1.png',dpi=500)

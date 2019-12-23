@@ -6,6 +6,7 @@ import numpy as np
 
 from matplotlib import pylab as plt
 
+bempp.api.PLOT_BACKEND = "gmsh"
 
 
 bempp.api.show_available_platforms_and_devices()
@@ -60,7 +61,7 @@ class ExteriorBEM:
 
     """
     #then = time.time()
-    def __init__(self,space,f_range,r0,q,mu,v,c0=343,rho0=1.21):
+    def __init__(self,space,f_range,r0,q,mu,v=0,c0=343,rho0=1.21):
         self.space = space
         self.f_range = f_range
         self.r0 = r0
@@ -97,7 +98,7 @@ class ExteriorBEM:
                 
             @bempp.api.real_callable(jit=False) 
             def v_data(r,n,domain_index,result):
-                result[0] = self.v[domain_index][fi]
+                result[0] = self.v[domain_index][fi] * (n[0]-1)
             
             
                 
@@ -132,7 +133,7 @@ class ExteriorBEM:
         
             boundP, info = bempp.api.linalg.iterative_solvers.gmres(lhs, rhs, tol=1E-5, use_strong_form=True)
         
-            boundU = 1j*(mu_op_r+1j*mu_op_i)*k*boundP - monopole_fun - 1j*self.c0*self.rho0*k*v_fun
+            boundU = 1j*(mu_op_r+1j*mu_op_i)*k*boundP - monopole_fun + 1j*self.c0*self.rho0*k*v_fun
             
             p[fi] = boundP
             u[fi] = boundU
@@ -223,10 +224,153 @@ class ExteriorBEM:
         
             identity = bempp.api.operators.boundary.sparse.identity(
                 self.space, self.space, self.space)
+            dlp = bempp.api.operators.boundary.helmholtz.adjoint_double_layer(
+                self.space, self.space, self.space, k)
+            slp = bempp.api.operators.boundary.helmholtz.single_layer(
+                self.space, self.space, self.space, k)
+            
+        
+            @bempp.api.complex_callable(jit=False)
+            def monopole_data(r, n, domain_index, result):
+                result[0]=0
+                for i in range(len(self.q)):
+                    pos = np.linalg.norm(r-self.r0[i])
+                    val  = self.q[i]*(np.exp(1j*k*pos)/(4*np.pi*pos))
+                    result[0] +=  -(1j*self.mu[domain_index][fi]*k*val - 1j*val/(pos*pos*self.rho0*self.c0*k) * (1j*k*pos-1)* np.dot(r-self.r0[i],n))
+            
+                
+            monopole_fun = bempp.api.GridFunction(self.space, fun=monopole_data)
+        
+        
+            lhs = (.5 * identity + dlp - 1j*k*slp*(mu_op_r+1j*mu_op_i)) -1j*k*slp
+            rhs = slp*monopole_fun
+
+        
+        
+            boundP, info = bempp.api.linalg.iterative_solvers.gmres(lhs, rhs, tol=1E-5)
+        
+            boundU = 1j*(mu_op_r+1j*mu_op_i)*k*boundP - monopole_fun
+            
+            p[fi] = boundP
+            u[fi] = boundU
+            
+            
+            print('{} / {}'.format(fi+1,np.size(self.f_range)))
+        return p,u
+    
+    def ousado_bemsolve(self):
+        """
+        Computes the bempp gridFunctions for the interior acoustic problem.
+        
+        Outputs: 
+            
+            boundP = grid_function for boundary pressure
+            
+            boundU = grid_function for boundary velocity
+        
+        """
+        
+        p = {}
+        u ={}
+        
+        for fi in range(np.size(self.f_range)):
+        
+            f = self.f_range[fi] #Convert index to frequency
+            k = 2*np.pi*f/self.c0 # Calculate wave number
+            @bempp.api.real_callable(jit=False) 
+            def mu_fun_r(r,n,domain_index,result):
+                result[0]=np.real(self.mu[domain_index][fi])
+            @bempp.api.real_callable(jit=False) 
+            def mu_fun_i(r,n,domain_index,result):
+                result[0]=np.imag(self.mu[domain_index][fi])
+            
+            mu_op_r = bempp.api.MultiplicationOperator(bempp.api.GridFunction(self.space,fun=mu_fun_r),self.space,self.space,self.space)
+            mu_op_i = bempp.api.MultiplicationOperator(bempp.api.GridFunction(self.space,fun=mu_fun_i),self.space,self.space,self.space)
+        
+            identity = bempp.api.operators.boundary.sparse.identity(
+                self.space, self.space, self.space)
+            dlp = bempp.api.operators.boundary.helmholtz.double_layer(
+                self.space, self.space, self.space, k)
+            adlp = bempp.api.operators.boundary.helmholtz.adjoint_double_layer(
+                self.space, self.space, self.space, k)
+            slp = bempp.api.operators.boundary.helmholtz.single_layer(
+                self.space, self.space, self.space, k)
+            hyp = bempp.api.operators.boundary.helmholtz.hypersingular(
+                self.space, self.space, self.space, k)
+            
+            @bempp.api.complex_callable(jit=False)
+            def monopole_data(r, n, domain_index, result):
+                result[0]=0
+                for i in range(len(self.q)):
+                    pos = np.linalg.norm(r-self.r0[i])
+                    val  = self.q[i]*np.exp(1j*k*pos)/(4*np.pi*pos)
+                    result[0] +=  -(1j*self.mu[domain_index][fi]*k*val - val/(pos*pos) * (1j*k*pos-1)* np.dot(r-self.r0[i],n-1))
+                       
+                
+            monopole_fun = bempp.api.GridFunction(self.space, fun=monopole_data)
+
+
+        
+            A = 0.5*identity + adlp - 1j*k*slp*(mu_op_r+1j*mu_op_i)
+            B = hyp + 1j*k*(0.5*identity - dlp)*(mu_op_r+1j*mu_op_i)
+            C = -hyp + k**2*(mu_op_r+1j*mu_op_i)*slp*(mu_op_r+1j*mu_op_i) - 1j*k*(mu_op_r+1j*mu_op_i)*adlp -1j*k*(mu_op_r+1j*mu_op_i)*dlp
+
+            
+            Ar = -slp*monopole_fun
+            Br = (0.5*identity + adlp)*monopole_fun
+#            
+            lhs = C
+            rhs = monopole_fun
+
+        
+        
+            boundP, info = bempp.api.linalg.iterative_solvers.gmres(lhs, rhs, tol=1E-5)
+        
+            boundU = 1j*(mu_op_r+1j*mu_op_i)*k*boundP + monopole_fun
+            
+            p[fi] = boundP
+            u[fi] = boundU
+            
+            
+            print('{} / {}'.format(fi+1,np.size(self.f_range)))
+        return p,u
+    def ORSC_bemsolve(self):
+        """
+        Computes the bempp gridFunctions for the interior acoustic problem.
+        
+        Outputs: 
+            
+            boundP = grid_function for boundary pressure
+            
+            boundU = grid_function for boundary velocity
+        
+        """
+        
+        p = {}
+        u ={}
+        
+        for fi in range(np.size(self.f_range)):
+        
+            f = self.f_range[fi] #Convert index to frequency
+            k = 2*np.pi*f/self.c0 # Calculate wave number
+            @bempp.api.real_callable(jit=False) 
+            def mu_fun_r(r,n,domain_index,result):
+                result[0]=np.real(self.mu[domain_index][fi])
+            @bempp.api.real_callable(jit=False) 
+            def mu_fun_i(r,n,domain_index,result):
+                result[0]=np.imag(self.mu[domain_index][fi])
+            
+            mu_op_r = bempp.api.MultiplicationOperator(bempp.api.GridFunction(self.space,fun=mu_fun_r),self.space,self.space,self.space)
+            mu_op_i = bempp.api.MultiplicationOperator(bempp.api.GridFunction(self.space,fun=mu_fun_i),self.space,self.space,self.space)
+        
+            identity = bempp.api.operators.boundary.sparse.identity(
+                self.space, self.space, self.space)
             dlp = bempp.api.operators.boundary.helmholtz.double_layer(
                 self.space, self.space, self.space, k)
             slp = bempp.api.operators.boundary.helmholtz.single_layer(
                 self.space, self.space, self.space, k)
+            hyp = bempp.api.operators.boundary.helmholtz.hypersingular(
+                    self.space, self.space, self.space, k)            
         
             @bempp.api.complex_callable(jit=False)
             def monopole_data(r, n, domain_index, result):
@@ -240,14 +384,14 @@ class ExteriorBEM:
             monopole_fun = bempp.api.GridFunction(self.space, fun=monopole_data)
         
         
-            lhs = (.5 * identity - dlp + 1j*k*slp*(mu_op_r+1j*mu_op_i)) 
-            rhs = slp*monopole_fun
+            lhs = (1j*k*(.5 * identity + dlp) - hyp + (mu_op_r+1j*mu_op_i)*(1j*k*slp+(-0.5*identity+dlp)))
+            rhs = monopole_fun
         
         
         
             boundP, info = bempp.api.linalg.iterative_solvers.gmres(lhs, rhs, tol=1E-5, use_strong_form=True)
         
-            boundU = 1j*(mu_op_r+1j*mu_op_i)*k*boundP - monopole_fun
+            boundU = 1j*(mu_op_r+1j*mu_op_i)*k*boundP + monopole_fun
             
             p[fi] = boundP
             u[fi] = boundU
@@ -255,7 +399,6 @@ class ExteriorBEM:
             
             print('{} / {}'.format(fi+1,np.size(self.f_range)))
         return p,u
-    
     def monopole(self,fi,pts):
         
         pInc = np.zeros(pts.shape[0], dtype='complex128')
@@ -294,7 +437,47 @@ class ExteriorBEM:
                 self.space, pts.T, k)
             dlp_pot = bempp.api.operators.potential.helmholtz.double_layer(
                 self.space, pts.T, k)
-            pScat =  (slp_pot * boundU[fi] + dlp_pot * boundP[fi])
+            pScat =  (-dlp_pot * boundP[fi] + slp_pot * boundU[fi])
+            
+            pInc = self.monopole(fi,pts)
+            
+            pT[fi] = (pInc+pScat)
+
+            print(20*np.log10(np.abs(pT[fi])/2e-5))
+            print('{} / {}'.format(fi+1,np.size(self.f_range)))
+            
+        return  np.array([pT[i] for i in pT.keys()]).reshape(len(pT),len(points))
+
+    def ORSC_point_evaluate(self,points, boundP,boundU):
+        
+        """
+        Evaluates the solution (pressure) for a point.
+        
+        Inputs:
+            points = dict[0:numPoints] containing np arrays with receiver positions 
+            
+            boundP = output from bemsolve()
+            
+            boundU = output from bemsolve()
+            
+        Output:
+            
+           pT =  Total Pressure Field
+           
+        """
+        pT = {}
+        pts = np.array([points[i] for i in points.keys()]).reshape(len(points),3)
+
+        for fi in range(np.size(self.f_range)):
+            f = self.f_range[fi] #Convert index to frequency
+            k = 2*np.pi*f/self.c0
+                
+            slp_pot = bempp.api.operators.potential.helmholtz.single_layer(
+                self.space, pts.T, k)
+#            dlp_pot = bempp.api.operators.potential.helmholtz.double_layer(
+#                self.space, pts.T, k)
+            dlp_pot = bempp.api.operators.potential.helmholtz.double_layer(self.space, pts.T, k)
+            pScat =   dlp_pot * boundP[fi] + 1j*k*slp_pot*boundP[fi]
             
             pInc = self.monopole(fi,pts)
             

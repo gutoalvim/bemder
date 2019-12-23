@@ -6,6 +6,7 @@ import numpy as np
 
 from matplotlib import pylab as plt
 
+bempp.api.PLOT_BACKEND = "gmsh"
 
 
 bempp.api.show_available_platforms_and_devices()
@@ -100,10 +101,10 @@ class RoomBEM:
                 result[0]=np.imag((self.mu[domain_index][fi]))
                 
                 
-                
-            @bempp.api.real_callable(jit=False)             
-            def v_data(r,n,domain_index,result):
-                result[0] = self.v[domain_index][fi]
+#                
+#            @bempp.api.real_callable(jit=False)             
+#            def v_data(r,n,domain_index,result):
+#                result[0] = self.v[domain_index][fi]
                 
                                 
 
@@ -126,15 +127,16 @@ class RoomBEM:
                     result[0] +=  -(1j*self.mu[domain_index][fi]*k*val - val/(pos*pos) * (1j*k*pos-1)* np.dot(r-self.r0[i],n))
             
             monopole_fun = bempp.api.GridFunction(self.space, fun=monopole_data)
-            v_fun = bempp.api.GridFunction(self.space, fun=v_data)
+#            v_fun = bempp.api.GridFunction(self.space, fun=v_data)
         
             lhs = (.5 * identity + dlp - 1j*k*slp*(mu_op_r+1j*mu_op_i)) 
-            rhs = -slp*(monopole_fun + 1j*k*self.c0*self.rho0*v_fun)
+            rhs = -slp*(monopole_fun)# + 1j*k*self.c0*self.rho0*v_fun)
         
         
-            boundP, info = bempp.api.linalg.iterative_solvers.gmres(lhs, rhs, tol=1E-5, use_strong_form=True)
+            boundP, info = bempp.api.linalg.gmres(lhs, rhs, tol=1E-5, use_strong_form=True)
         
             boundU = 1j*(mu_op_r+1j*mu_op_i)*k*boundP - monopole_fun
+            boundU.plot()
             
             p[fi] = boundP
             u[fi] = boundU
@@ -192,7 +194,7 @@ class RoomBEM:
             
         return  np.array([pT[i] for i in pT.keys()]).reshape(len(pT),len(points))
     
-    def grid_evaluate(self,fi,plane,d,grid_size,n_grid_pts,boundP,boundU):
+    def grid_evaluate(self,fi,plane,d,grid_size,n_grid_pts,boundP,boundU,savename=None):
         
         """
         Evaluates and plots the SPL in symmetrical grid for a mesh centered at [0,0,0].
@@ -232,14 +234,63 @@ class RoomBEM:
             
             pInc = self.monopole(fi,grid_pts.T)
             
-            grid_pT = np.conj(pScat)
+            grid_pT = np.conj(pScat+pInc)
             
             pT[fi] = grid_pT.reshape((n_grid_points,n_grid_points))
             
-            plt.imshow(20*np.log10(np.abs(pT[fi].T)/2e-5), extent=(0,grid_size[0],0,grid_size[1]),  cmap='jet')
-            plt.colorbar()
-            plt.show()
+            if savename == None:
+                plt.imshow(20*np.log10(np.abs(pT[fi].T)/2e-5), extent=(0,grid_size[0],0,grid_size[1]),  cmap='jet')
+                plt.colorbar()
+                plt.savefig('colorbar.png',dpi=500)
+
+                plt.show()
+            else:
+                fig = plt.figure(frameon=False)
+                ax = plt.Axes(fig, [0., 0., 1., 1.])
+                ax.set_axis_off()
+                fig.add_axes(ax)
+                plt.imshow(20*np.log10(np.abs(pT[fi].T)/2e-5), cmap='jet',extent=(0,grid_size[0],0,grid_size[1]))
+                plt.colorbar()
+                plt.savefig('plane_xy.png',dpi=500)
+                plt.show()
+            return grid_pT
+        
             
+            return grid_pT
+
+        if plane == 'xy_c':
+            n_grid_points = n_grid_pts
+            plot_grid = np.mgrid[grid_size[0]:0:n_grid_points*1j, grid_size[1]:0:n_grid_points*1j]
+            grid_pts = np.vstack((plot_grid[0].ravel(),plot_grid[1].ravel(),d+np.zeros(plot_grid[0].size)))
+                          
+            
+            
+            slp_pot = bempp.api.operators.potential.helmholtz.single_layer(
+                self.space, grid_pts, k)
+            dlp_pot = bempp.api.operators.potential.helmholtz.double_layer(
+                self.space, grid_pts, k)
+            pScat =  (slp_pot * boundU[fi] + dlp_pot * boundP[fi])
+            
+            pInc = self.monopole(fi,grid_pts.T)
+            
+            grid_pT = np.conj(pScat+pInc)
+            
+            pT[fi] = grid_pT.reshape((n_grid_points,n_grid_points))
+            
+            if savename == None:
+                plt.imshow(20*np.log10(np.abs(pT[fi].T)/2e-5), extent=(0,grid_size[0],0,grid_size[1]),  cmap='jet')
+                plt.colorbar()
+                plt.savefig('colorbar.png',dpi=500)
+
+                plt.show()
+            else:
+                fig = plt.figure(frameon=False)
+                ax = plt.Axes(fig, [0., 0., 1., 1.])
+                ax.set_axis_off()
+                fig.add_axes(ax)
+                plt.imshow(20*np.log10(np.abs(pT[fi].T)/2e-5), cmap='jet')
+                plt.savefig('plane_xy.png',dpi=500)
+                plt.show()
             return grid_pT
         
         if plane == 'yx':

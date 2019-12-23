@@ -5,7 +5,7 @@ import pandas as pd
 import bempp.api
 import numpy as np
 import bemder.porous as porous
-from bemder.exterior_api import ExteriorBEM
+from bemder.exterior_api_new import ExteriorBEM
 
 #% Defining constants
 c0 = 343 #Speed ou sound
@@ -48,7 +48,7 @@ r0[0] =  np.array([0,-1.2,0])
 
 
 q = {}
-q[0] = 2
+q[0] = 1
 #q[1] = 2
 
 #%%
@@ -64,12 +64,12 @@ n_grid_pts = 500
 
 s1 = ExteriorBEM(space,f_range,r0,q,mu,c0)
 
-p,u = s1.bemsolve()
+p,u = s1.helmholtz_bemsolve()
 
 #%%
-pT = s1.grid_evaluate(0,plane,d,grid_size,n_grid_pts,p,u,savename='banana')
+#pT = s1.grid_evaluate(0,plane,d,grid_size,n_grid_pts,p,u,savename='banana')
 
-#pt_T = s1.point_evaluate(points,p,u)
+pt_T = s1.point_evaluate(points,p,u)
 
 #%% Plot Comparison between Bempp and Validation
 data = pd.read_csv('Data/exterior_eric_close.csv', sep=",", header=None)
