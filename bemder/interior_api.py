@@ -2,7 +2,7 @@
 
 import bempp.api
 import numpy as np
-
+import numba
 
 from matplotlib import pylab as plt
 
@@ -67,7 +67,6 @@ class RoomBEM:
         self.r0 = r0
         self.q = q
         self.mu = mu
-        self.v = v
         self.c0 = c0
         self.rho0 = rho0
 
@@ -84,6 +83,8 @@ class RoomBEM:
             boundU = grid_function for boundary velocity
         
         """
+        bempp.api.set_default_device(0,1)
+        print('\nSelected device:', bempp.api.default_device().name) 
         
         p = {}
         u ={}
@@ -93,12 +94,14 @@ class RoomBEM:
         
             f = self.f_range[fi] #Convert index to frequency
             k = 2*np.pi*f/self.c0 # Calculate wave number
-            @bempp.api.real_callable(jit=False) 
+            @bempp.api.real_callable
             def mu_fun_r(r,n,domain_index,result):
-                result[0]=np.real((self.mu[domain_index][fi]))
-            @bempp.api.real_callable(jit=False) 
+                with numba.objmode():
+                    result[0]=np.real((self.mu[domain_index][fi]))
+            @bempp.api.real_callable
             def mu_fun_i(r,n,domain_index,result):
-                result[0]=np.imag((self.mu[domain_index][fi]))
+                with numba.objmode():
+                    result[0]=np.imag((self.mu[domain_index][fi]))
                 
                 
 #                
@@ -118,14 +121,15 @@ class RoomBEM:
             slp = bempp.api.operators.boundary.helmholtz.single_layer(
                 self.space, self.space, self.space, k)
         
-            @bempp.api.complex_callable(jit=False)
+            @bempp.api.complex_callable
             def monopole_data(r, n, domain_index, result):
-                result[0]=0
-                for i in range(len(self.q)):
-                    pos = np.linalg.norm(r-self.r0[i])
-                    val  = self.q[i]*np.exp(1j*k*pos)/(4*np.pi*pos)
-                    result[0] +=  -(1j*self.mu[domain_index][fi]*k*val - val/(pos*pos) * (1j*k*pos-1)* np.dot(r-self.r0[i],n))
-            
+                with numba.objmode():
+                    result[0]=0
+                    for i in range(len(self.q)):
+                        pos = np.linalg.norm(r-self.r0[i])
+                        val  = self.q[i]*np.exp(1j*k*pos)/(4*np.pi*pos)
+                        result[0] +=  -(1j*self.mu[domain_index][fi]*k*val - val/(pos*pos) * (1j*k*pos-1)* np.dot(r-self.r0[i],n))
+                
             monopole_fun = bempp.api.GridFunction(self.space, fun=monopole_data)
 #            v_fun = bempp.api.GridFunction(self.space, fun=v_data)
         
@@ -136,7 +140,7 @@ class RoomBEM:
             boundP, info = bempp.api.linalg.gmres(lhs, rhs, tol=1E-5, use_strong_form=True)
         
             boundU = 1j*(mu_op_r+1j*mu_op_i)*k*boundP - monopole_fun
-            boundU.plot()
+            # boundU.plot()
             
             p[fi] = boundP
             u[fi] = boundU
@@ -172,6 +176,8 @@ class RoomBEM:
            pT =  Total Pressure Field
            
         """
+        bempp.api.set_default_device(1,0)
+        print('\nSelected device:', bempp.api.default_device().name) 
         pT = {}
         pts = np.array([points[i] for i in points.keys()]).reshape(len(points),3)
 

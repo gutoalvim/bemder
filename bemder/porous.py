@@ -14,6 +14,7 @@ def delany(RF,d,f_range):
     Output:
         Zs: Surface Impedance [Pa*s/m]
     """
+    f_range = np.array(f_range)
     w = 2*np.pi*f_range
 
 
@@ -63,3 +64,15 @@ def allard(RF, ai, phi, A, Cp, Cv, d, f_range):
     kc = w*np.sqrt(rhoc/K)
     
     Zs = -1j*Zc/np.tan(kc*d)
+    
+    
+def membrane(RF, d, D, tm, rhom, f_range):
+    
+    """
+    Takes as input the parameters of a membrane absorber model and porous
+    model to be used.
+    
+    Input: 
+        
+    """
+    

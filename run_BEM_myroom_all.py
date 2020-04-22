@@ -17,7 +17,7 @@ filename = 'myroom_all.msh'
 grid = bempp.api.import_grid('Mshs/'+filename)
 
 #Defining frequencies of analysis 
-f1= 20
+f1= 124
 f2 = 124
 df = 10
 f_range = np.arange(f1,f2+df,df)
@@ -70,9 +70,10 @@ s1 = RoomBEM(space,f_range,r0,q,mu,c0)
 
 p,u = s1.bemsolve()
 
+
 #%%
 
-pt = s1.grid_evaluate(4,plane,d,grid_size,n_grid_pts,p,u)
+pt = s1.grid_evaluate(0,plane,d,grid_size,n_grid_pts,p,u)
 #%%
 pT = s1.point_evaluate(points,p,u)
 
