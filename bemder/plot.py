@@ -8,6 +8,7 @@ import numpy as np
 import plotly
 import matplotlib.pyplot as plt
 from matplotlib import style
+from bemder import receivers
 style.use("seaborn-talk")
 
 def plot_problem(obj,S=None,R=None,grid_pts=None, pT=None, mode="element", transformation=None):
@@ -42,11 +43,11 @@ def plot_problem(obj,S=None,R=None,grid_pts=None, pT=None, mode="element", trans
         fig['layout']['scene'].update(go.layout.Scene(aspectmode='data'))
         
         if R != None:
-            fig.add_trace(go.Scatter3d(x = R.coord[:,0], y = R.coord[:,1], z = R.coord[:,2],name="Receivers"))
+            fig.add_trace(go.Scatter3d(x = R.coord[:,0], y = R.coord[:,1], z = R.coord[:,2],mode='markers',name="Receivers"))
             
         if S != None:    
             if S.wavetype == "spherical":
-                fig.add_trace(go.Scatter3d(x = S.coord[:,0], y = S.coord[:,1], z = S.coord[:,2],name="Sources"))
+                fig.add_trace(go.Scatter3d(x = S.coord[:,0], y = S.coord[:,1], z = S.coord[:,2],mode='markers',name="Sources"))
         
         # fig.show()
         plotly.offline.iplot(fig)
@@ -109,3 +110,17 @@ def polar_plot(theta,p,normalize=True,transformation= None,ylim=[-40,0],title = 
             plt.title(title)
         plt.show()
         
+def polar_3d(R,ps):
+    import plotly.figure_factory as ff
+    import plotly.graph_objs as go
+    
+    Rr = receivers.Receiver()
+    Rr.spherical_receivers(radius=1.0,ns=200, axis='x',random = False, plot=False)
+    P = 1+np.real((20*np.log10(ps/2e-5) - max(20*np.log10(ps/2e-5)))/max(20*np.log10(ps/2e-5)))
+
+    cx = Rr.coord[:,0]*0.5*P
+    cy = Rr.coord[:,1]*0.5*P
+    cz = Rr.coord[:,2]*0.5*P
+
+    fig = go.Figure(data=[go.Mesh3d(x = cx,y=cy,z=cz,alphahull=-1)])
+    fig.show()

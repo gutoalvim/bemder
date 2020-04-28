@@ -124,7 +124,7 @@ class ExteriorBEM:
     R_init = receivers.Receiver(coord=[1.5,0,0])
     grid_init = bempp.api.shapes.regular_sphere(2)
     
-    def __init__(self,grid=grid_init,AC=AC_init,AP=AP_init,S=S_init,R=R_init,mu=None):
+    def __init__(self,grid=grid_init,AC=AC_init,AP=AP_init,S=S_init,R=R_init,mu=None,v=None):
         self.grid = grid
         self.f_range = AC.freq
         self.wavetype = S.wavetype
@@ -139,6 +139,7 @@ class ExteriorBEM:
         self.R = R
         self.BC = 'neumann'
         self.EoI = 0
+        self.v = v
         
         if self.BC == "robin" or "dirichlet": 
             self.space = bempp.api.function_space(self.grid, "DP", 0)
@@ -331,6 +332,11 @@ class ExteriorBEM:
             self.mu = {}
             for i in (np.unique(self.grid.domain_indices)):
                 self.mu[i] = np.zeros_like(self.f_range)
+
+        if self.v == None:
+            self.v = {}
+            for i in (np.unique(self.grid.domain_indices)):
+                self.v[i] = np.zeros_like(self.f_range)        
         # mu_fi = np.array([self.mu[i] for i in self.mu.keys()])
         self.space = bempp.api.function_space(self.grid, "DP", 0)
         for fi in range(np.size(self.f_range)):
@@ -352,6 +358,11 @@ class ExteriorBEM:
             
             mu_op_r = bempp.api.MultiplicationOperator(bempp.api.GridFunction(self.space,fun=mu_fun_r),self.space,self.space,self.space)
             mu_op_i = bempp.api.MultiplicationOperator(bempp.api.GridFunction(self.space,fun=mu_fun_i),self.space,self.space,self.space)
+            
+            @bempp.api.real_callable
+            def v_data(x, n, domain_index, result):
+                with numba.objmode():
+                    result[0] = self.v[domain_index][fi]
         
             identity = bempp.api.operators.boundary.sparse.identity(
                 self.space, self.space, self.space)
@@ -394,41 +405,19 @@ class ExteriorBEM:
                 
             else:
                 raise TypeError("Wavetype must be plane or spherical")      
+
+            v_fun = bempp.api.GridFunction(self.space, fun=v_data)
                 
             monopole_fun = bempp.api.GridFunction(self.space, fun=combined_data)
-            # monopole_fun.plot()
-#            v_fun = bempp.api.GridFunction(self.space, fun=v_data)
-
-        
-            
+     
             Y = a*(mu_op_r+1j*mu_op_i)# + monopole_fun
-            # A = 0.5*identity + dlp - ni*slp
-            # Bp = hyp + ni*(0.5*identity - adlp)
-
-            # lhs = Bp + ni*Y*A
-            # rhs = monopole_fun
-            
-            
-            # Ap = 0.5*identity + adlp - 1j*ni*slp
-            # B = hyp + ni*(0.5*identity - dlp)
-            
-            # C = B + Ap*Y
-            
-            # lhs = C
-            # rhs = Ap*monopole_fun
-            
-            # Hp = hyp
-            # D = a*Y*slp
-            # G = a*slp
-            # H = dlp
-            # Dp = a*Y*adlp
-            
+   
             lhs = (0.5*identity-dlp) - slp*Y
-            rhs = monopole_fun
+            rhs = monopole_fun - slp*a*v_fun
         
             boundP, info = bempp.api.linalg.gmres(lhs, rhs, tol=1E-5)#, use_strong_form=True)
         
-            boundU = -Y*boundP #- monopole_fun
+            boundU = -Y*boundP + a*v_fun#- monopole_fun
             
             self.boundData[fi] = [boundP, boundU]
             # u[fi] = boundU
@@ -517,7 +506,135 @@ class ExteriorBEM:
             print('{} / {}'.format(fi+1,np.size(self.f_range)))
             
         return  np.array([pT[i] for i in pT.keys()]).reshape(len(pT),len(R.coord)),np.array([pS[i] for i in pS.keys()]).reshape(len(pS),len(R.coord))
-    
+   
+    def velocity_evaluate(self,boundD,R):
+        
+        bempp.api.set_default_device(1,0)
+        print('\nSelected device:', bempp.api.default_device().name) 
+        pT = {}
+        pS = {}
+        vx = {}
+        vy = {}
+        vz = {}
+        pTX1 = {}
+        pTX2 = {}
+        pTY1 = {}
+        pTY2 = {}
+        pTZ1 = {}
+        pTZ2 = {}
+        pts = R.coord.reshape(len(R.coord),3)
+
+        for fi in range(np.size(self.f_range)):
+            f = self.f_range[fi] #Convert index to frequency
+            k = 2*np.pi*f/self.c0
+            
+            # ptsX1 = pts[0,:] + 0.25*self.f_range[fi]*self.c0
+            # ptsX1 = [ptsX1,pts[1,:],pts[2,:]]
+            # ptsX2 = pts[0,:] - 0.25*self.f_range[fi]*self.c0
+            # ptsX1 = [ptsX1,pts[1,:],pts[2,:]]
+            # ptsX1 = [ptsX2,pts[1,:],pts[2,:]]
+
+
+            # ptsY1 = pts[1,:] + 0.25*self.f_range[fi]*self.c0
+            # ptsY2 = pts[1,:] - 0.25*self.f_range[fi]*self.c0
+            # ptsY1 = [pts[0,:],ptsY1,pts[2,:]]
+            # ptsY2 = [pts[0,:],ptsY2,pts[2,:]]
+                
+            # ptsZ1 = pts[3,:] + 0.25*self.f_range[fi]*self.c0
+            # ptsZ2 = pts[3,:] - 0.25*self.f_range[fi]*self.c0
+            # ptsZ1 = [pts[0,:],pts[1,:],ptsZ1]
+            # ptsZ2 = [pts[0,:],pts[1,:],ptsZ2]
+            
+            ptsX1 = pts
+            ptsX1[0,:] += 0.25*self.f_range[fi]*self.c0
+            ptsX2 = pts
+            ptsX2[0,:] +=  - 0.25*self.f_range[fi]*self.c0
+            
+            ptsY1 = pts
+            ptsY1[1,:] += 0.25*self.f_range[fi]*self.c0
+            ptsY2 = pts
+            ptsY2[1,:] +=  - 0.25*self.f_range[fi]*self.c0
+            
+            ptsZ1 = pts
+            ptsZ1[2,:] += 0.25*self.f_range[fi]*self.c0
+            ptsZ2 = pts
+            ptsZ2[2,:] +=  - 0.25*self.f_range[fi]*self.c0
+
+            ptsT = np.vstack((pts,ptsX1,ptsX2,ptsY2,ptsY2,ptsZ1,ptsZ2))
+            # ptsT = ptsT.reshape(len(R.coord)*7,3)
+            
+            slp_pot = bempp.api.operators.potential.helmholtz.single_layer(
+                self.space, pts.T, k)
+            dlp_pot = bempp.api.operators.potential.helmholtz.double_layer(
+                self.space, pts.T, k)
+            pScat =  (slp_pot * boundD[fi][1] - dlp_pot * boundD[fi][0])            
+            pInc = self.monopole(fi,pts)
+            
+            pT[fi] = np.conj(pInc+pScat)
+            
+            slp_potX1 = bempp.api.operators.potential.helmholtz.single_layer(
+                self.space, ptsX1.T, k)
+            dlp_potX1 = bempp.api.operators.potential.helmholtz.double_layer(
+                self.space, ptsX1.T, k)
+            pScatx1 =  (slp_pot * boundD[fi][1] - dlp_pot * boundD[fi][0])            
+            pIncx1 = self.monopole(fi,ptsX1)
+            
+            pTX1[fi] = np.conj(pInc+pScat)
+
+            slp_potY1 = bempp.api.operators.potential.helmholtz.single_layer(
+                self.space, ptsY1.T, k)
+            dlp_potY1 = bempp.api.operators.potential.helmholtz.double_layer(
+                self.space, ptsY1.T, k)
+            pScatY1 =  (slp_pot * boundD[fi][1] - dlp_pot * boundD[fi][0])            
+            pIncY1 = self.monopole(fi,ptsY1)
+            
+            pTY1[fi] = np.conj(pInc+pScat)
+
+            slp_potx1 = bempp.api.operators.potential.helmholtz.single_layer(
+                self.space, ptsZ1.T, k)
+            dlp_potZ1 = bempp.api.operators.potential.helmholtz.double_layer(
+                self.space, ptsZ1.T, k)
+            pScatZ1 =  (slp_pot * boundD[fi][1] - dlp_pot * boundD[fi][0])            
+            pIncZ1 = self.monopole(fi,ptsZ1)
+            
+            pTZ1[fi] = np.conj(pInc+pScat)
+
+            slp_potX2 = bempp.api.operators.potential.helmholtz.single_layer(
+                self.space, ptsX2.T, k)
+            dlp_potX2 = bempp.api.operators.potential.helmholtz.double_layer(
+                self.space, ptsX2.T, k)
+            pScatx2 =  (slp_pot * boundD[fi][1] - dlp_pot * boundD[fi][0])            
+            pIncx2 = self.monopole(fi,ptsX2)
+            
+            pTX2[fi] = np.conj(pInc+pScat)
+
+            slp_potY2 = bempp.api.operators.potential.helmholtz.single_layer(
+                self.space, ptsY2.T, k)
+            dlp_potY2 = bempp.api.operators.potential.helmholtz.double_layer(
+                self.space, ptsY2.T, k)
+            pScatY2 =  (slp_pot * boundD[fi][1] - dlp_pot * boundD[fi][0])            
+            pIncY2 = self.monopole(fi,ptsY2)
+            
+            pTY2[fi] = np.conj(pInc+pScat)
+
+            slp_potx2 = bempp.api.operators.potential.helmholtz.single_layer(
+                self.space, ptsZ2.T, k)
+            dlp_potZ2 = bempp.api.operators.potential.helmholtz.double_layer(
+                self.space, ptsZ2.T, k)
+            pScatZ2 =  (slp_pot * boundD[fi][1] - dlp_pot * boundD[fi][0])            
+            pIncZ2 = self.monopole(fi,ptsZ2)
+            
+            pTZ2[fi] = np.conj(pInc+pScat)
+             
+            
+            vx[fi] = np.gradient([pTX1[fi],pTX2[fi]])
+            vy[fi] = np.gradient([pTY1[fi],pTY2[fi]])
+            vz[fi] = np.gradient([pTZ1[fi],pTZ2[fi]])
+
+            print(20*np.log10(np.abs(pT[fi])/2e-5))
+            print('{} / {}'.format(fi+1,np.size(self.f_range)))
+            
+        return  np.array([vx[i] for i in vx.keys()]).reshape(len(vx),len(R.coord)),np.array([vy[i] for i in vy.keys()]).reshape(len(vy),len(R.coord)),np.array([vz[i] for i in vz.keys()]).reshape(len(vz),len(R.coord))    
 
 
     def combined_grid_evaluate(self,boundData,fi=0,plane="z",d=0,grid_size=[4,4],n_grid_pts=600):
@@ -816,7 +933,7 @@ class RoomBEM:
                                         eg: zsd1 = porous.delany(5000,0.1,f_range)
                                             zsd2 = porous.delany(10000,0.2,f_range)
                                             zsd3 = porous.delany(15000,0.3,f_range)
-                                            mud1 = np.complex128(rho0*c0/np.conj(zsd1))
+                                            mud1 = np.compleZ128(rho0*c0/np.conj(zsd1))
                                             mud2 = np.complex128(rho0*c0/np.conj(zsd2))
                                             mud3 = np.complex128(rho0*c0/np.conj(zsd3))
                                             
@@ -975,6 +1092,59 @@ class RoomBEM:
             
         return  np.array([pT[i] for i in pT.keys()]).reshape(len(pT),len(R.coord)),np.array([pS[i] for i in pS.keys()]).reshape(len(pS),len(R.coord))
     
+    # def velocity_evaluate(self,R,bD):
+        
+    #     bempp.api.set_default_device(1,0)
+    #     print('\nSelected device:', bempp.api.default_device().name) 
+    #     pT = {}
+    #     pS = {}
+    #     vx = {}
+    #     vy = {}
+    #     vz = {}
+    #     pts = R.coord.reshape(len(R.coord),3)
+
+    #     for fi in range(np.size(self.f_range)):
+    #         f = self.f_range[fi] #Convert index to frequency
+    #         k = 2*np.pi*f/self.c0
+            
+    #         ptsX1 = pts[0,:] + 0.25*self.f_range[fi]*self.c0
+    #         ptsX2 = pts[0,:] - 0.25*self.f_range[fi]*self.c0
+
+    #         ptsY1 = pts[1,:] + 0.25*self.f_range[fi]*self.c0
+    #         ptsY2 = pts[1,:] - 0.25*self.f_range[fi]*self.c0
+                
+    #         ptsZ1 = pts[3,:] + 0.25*self.f_range[fi]*self.c0
+    #         ptsZ2 = pts[3,:] - 0.25*self.f_range[fi]*self.c0
+            
+    #         ptsT = np.hstack(pts,ptsX1,ptsX2,ptsY2,ptsY2,ptsZ1,ptsZ2)
+            
+    #         # ptsT = ptsT.reshape(len(R.coord)*7,3)
+            
+    #         slp_pot = bempp.api.operators.potential.helmholtz.single_layer(
+    #             self.space, ptsT.T, k)
+    #         dlp_pot = bempp.api.operators.potential.helmholtz.double_layer(
+    #             self.space, ptsT.T, k)
+    #         pScat =  (slp_pot * boundD[fi][1] - dlp_pot * boundD[fi][0])
+            
+    #         pInc = self.monopole(fi,pts)
+            
+    #         pT[fi] = np.conj(pInc+pScat)
+    #         pS[fi] = np.conj(pScat)
+            
+    #         pT[fi] = pT.reshape(7,3)
+            
+    #         vx[fi] = np.grad(pT[fi][1],pT[fi][2])
+    #         vy[fi] = np.grad(pT[fi][3],pT[fi][4])
+    #         vz[fi] = np.grad(pT[fi][5],pT[fi][6])
+
+    #         print(20*np.log10(np.abs(pT[fi])/2e-5))
+    #         print('{} / {}'.format(fi+1,np.size(self.f_range)))
+            
+    #     return  np.array([vx[i] for i in vx.keys()]).reshape(len(vx),len(R.coord)),
+    # np.array([vy[i] for i in vy.keys()]).reshape(len(vy),len(R.coord)),
+    # np.array([vz[i] for i in vy.keys()]).reshape(len(vz),len(R.coord))
+            
+            
 
     def combined_grid_evaluate(self,boundData,fi=0,plane="z",d=0,grid_size=[4,4],n_grid_pts=600):
         

@@ -12,6 +12,7 @@ import bempp.api
 import numpy as np
 from bemder.bem_api_new import ExteriorBEM
 import bemder.plot as bplt
+import bemder.helpers as hh
 from bemder import sources 
 from bemder import receivers
 from bemder import controlsair as ctrl
@@ -181,3 +182,56 @@ plt.show()
 #%%
 bplt.polar_plot(R.theta,bq_ps,normalize=True, transformation="dB",title = "QRD Rigid SPL - mic_20m - r0_200m")
 bplt.polar_plot(R.theta,bqr_ps,normalize=True, transformation="dB",title = "QRD Rigid SPL - mic_20m - r0_200m")
+
+#%%
+
+Tfq = hh.diffusion_coef(AC.freq, bq_ps,bqr_ps,plot=False)
+Tfqa = hh.diffusion_coef(AC.freq, bqa_ps,bqra_ps,plot=False)
+
+fig, ax = plt.subplots()
+ax.set_ylim(0,1)
+ax.plot(AC.freq,Tfq)
+ax.plot(AC.freq,Tfqa)
+plt.legend(('QRD 1D - 1 Period ','QRD 1D - 3 Periods'))
+plt.title('QRD 1D - Normal Incidence Diffusion Coefficient')
+
+#%%
+
+Tfq = hh.diffusion_coef(AC.freq, bq_ps,bqr_ps,plot=False)
+Tfqz = hh.diffusion_coef(AC.freq, bqa_ps,bqra_ps,plot=False)
+
+sfq = hh.scattering_coef(AC.freq, bq_ps,bqr_ps,plot=False)
+sfqz = hh.scattering_coef(AC.freq, bqa_ps,bqra_ps,plot=False)
+
+
+Treflex = [0,0,0.69,0.6,0.22,0.27,0.8,0.65,0.53,0.45,0.5]
+Tqca = [0.01,0.07,0.12,0.07,0.39]
+# Tfqa = hh.diffusion_coef(AC.freq, bqa_ps,bqra_ps,plot=False)
+
+fig, ax = plt.subplots()
+ax.set_ylim(0,1)
+ax.semilogx(AC.freq,Tfq)
+ax.semilogx(AC.freq,Tfqz)
+ax.set_xticklabels(AC.freq)
+ax.set_xticks(AC.freq)
+
+
+# ax.plot(AC.freq,Treflex)
+plt.legend(('QRD 1D - 1 Period ','QRD 1D - 3 Periods'))
+plt.title('QRD 1D - Normal Incidence Diffusion Coefficient')
+plt.savefig('QRD_1D_array_Tf_comp.png',dpi=500)
+
+plt.show()
+
+
+fig, ax = plt.subplots()
+ax.set_ylim(0,1)
+ax.semilogx(AC.freq,sfq)
+ax.semilogx(AC.freq,sfqz)
+ax.set_xticklabels(AC.freq)
+ax.set_xticks(AC.freq)
+# ax.plot(AC.freq,Treflex)
+plt.legend(('QRD 1D - 1 Period ','QRD 1D - 3 Periods'))
+plt.title('QRD 1D - Normal Incidence Scattering Coefficient')
+plt.savefig('QRD_1D_array_s_comp.png',dpi=500)
+plt.show()

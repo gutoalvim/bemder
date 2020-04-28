@@ -4,7 +4,8 @@ import pickle
 import os
 import time
 import bemder.bem_api as bem
-
+import matplotlib.pyplot as plt
+import numpy as np
 
 def progress_bar(progress):
     """
@@ -148,3 +149,35 @@ def pack_bem(filename='Configuration', save=True, folder=None, timestamp=True, e
         print('Saved successfully.')
     if save is False:
         return packedData
+
+def diffusion_coef(frequency,pDiffuser,pRef, plot=False):
+
+    f_range = frequency
+    Tf = np.zeros([len(f_range),1])
+    
+    for i in range(len(f_range)):
+        T = (np.sum(np.abs(pDiffuser[i,:]))**2 - np.sum(np.abs(pDiffuser[i,:])**2))/((len(pDiffuser.T)-1)*np.sum(np.abs(pDiffuser[i,:])**2))
+        T_ref = (np.sum(np.abs(pRef[i,:]))**2 - np.sum(np.abs(pRef[i,:])**2))/((len(pRef.T)-1)*np.sum(np.abs(pRef[i,:])**2))
+        
+        Tf[i] = (T - T_ref)/(1-T_ref)
+            
+    if plot == True: 
+        
+        fig, ax = plt.subplots()
+        ax.plot(f_range, Tf)
+        ax.set_ylim(0,1)
+    return Tf
+
+def scattering_coef(frequency,pDiffuser,pRef,plot=False):
+    f_range = frequency
+    s = np.zeros([len(f_range),1])
+    for i in range(len(f_range)):
+        s[i] = 1 - (np.abs(np.sum(pDiffuser[i,:]*np.conj(pRef[i,:])))**2/(np.sum(np.abs(pDiffuser[i,:])**2)*np.sum(np.abs(pRef[i,:])**2)))
+        
+    if plot == True: 
+        
+        fig, ax = plt.subplots()
+        ax.plot(f_range, Tf)
+        ax.set_ylim(0,1)
+        
+    return s
