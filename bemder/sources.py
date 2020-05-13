@@ -40,13 +40,18 @@ class Source():
     #     pass
     
     
-    def arc_sources(self, radius = 1.0, ns = 10, angle_span = (-90, 90), d = 0, axis = "x", random = False, plot=False ):
+    def arc_sources(self, radius = 1.0, ns = 10, angle_span = (-90, 90), d = 0, axis = "x", random = False, plot=False,noise=False,noisescale = 1,seed=0 ):
+        np.random.seed(seed)
+        
         points = {}
         qi = {}
         theta = np.linspace(angle_span[0]*np.pi/180, angle_span[1]*np.pi/180, ns)
         for i in range(len(theta)):
             thetai = theta[i]
             # compute x1 and x2
+            if noise == True:
+                thetai = np.deg2rad(np.rad2deg(thetai) + np.float(noisescale*np.random.randn(1,1)))
+                
             x1 = d + radius*np.cos(thetai)
             x2 = d + radius*np.sin(thetai)
             x3 = d
@@ -63,9 +68,10 @@ class Source():
             elif random == False:
                 qi[i] = self.q
             
+
         self.coord= np.array([points[i] for i in points.keys()])
         self.q = np.array([qi[i] for i in qi.keys()])
-
+        self.theta = theta
     def set_ssph_sources(self, radius = 1.0, ns = 100, random = False, plot=False):
         '''
         This method is used to generate an array of sound sources over a surface of a sphere

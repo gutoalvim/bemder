@@ -1,6 +1,7 @@
 import numpy as np
 #import toml
 import matplotlib.pyplot as plt
+import time, sys
 
 class AirProperties():
     def __init__(self, c0 = 343.0, rho0 = 1.21, temperature = 20.0, humid = 50.0, p_atm = 101325.0):
@@ -14,8 +15,10 @@ class AirProperties():
             p_atm - atmospheric pressure (default 101325.0 Pa)
         '''
         # config = load_cfg(config_file)
-        self.c0 = np.array(c0, dtype = np.float32)
-        self.rho0 = np.array(rho0, dtype = np.float32)
+        # self.c0 = np.array(c0, dtype = np.float32)
+        # self.rho0 = np.array(rho0, dtype = np.float32)
+        self.c0 = np.array(c0)
+        self.rho0 = np.array(rho0)
         self.temperature = np.array(temperature, dtype = np.float32)
         self.hr = np.array(humid, dtype = np.float32)
         self.p_atm = np.array(p_atm, dtype = np.float32)
@@ -96,17 +99,37 @@ class AlgControls():
         # config = load_cfg(config_file)
         freq_vec = np.array(freq_vec)
         if freq_vec.size == 0:
-            self.freq_init = np.array(freq_init, dtype = np.float32)
-            self.freq_end = np.array(freq_end, dtype = np.float32)
-            self.freq_step = np.array(freq_step, dtype = np.float32)
-            self.freq = np.arange(self.freq_init, self.freq_end + self.freq_step, self.freq_step, dtype = np.float32)
+            self.freq_init = np.array(freq_init)
+            self.freq_end = np.array(freq_end)
+            self.freq_step = np.array(freq_step)
+            self.freq = np.arange(self.freq_init, self.freq_end + self.freq_step, self.freq_step)
         else:
-            self.freq_init = np.array(freq_vec[0], dtype = np.float32)
-            self.freq_end = np.array(freq_vec[-1], dtype = np.float32)
+            self.freq_init = np.array(freq_vec[0])
+            self.freq_end = np.array(freq_vec[-1])
             self.freq = freq_vec
         self.w = 2.0 * np.pi * self.freq
         self.k0 = self.w / c0
 
+    def third_octave_fvec(self,fcentermin=100,fcentermax=2000,nperoct=1):
+        
+        G = 10.0**(3.0 / 10.0)
+        fraction = 3
+        fcenter = np.array([
+    25.0, 31.5, 40.0, 50.0, 63.0, 80.0, 100.0, 125.0, 160.0, 200.0, 250.0, 315.0, 400.0, 500.0, 630.0, 800.0, 1000.0,
+    1250.0, 1600.0, 2000.0, 2500.0, 3150.0, 4000.0, 5000.0, 6300.0, 8000.0, 10000.0, 12500.0, 16000.0, 20000.0])
+        
+        fil = list(fcenter).index(fcentermin)
+        fim = list(fcenter).index(fcentermax)
+        fcenter = fcenter[fil:fim+1]
+
+        flower = fcenter * G**(-1.0 / (2.0 * fraction))
+        fupper = fcenter * G**(+1.0 / (2.0 * fraction))
+        fvec = []
+        for i in range(len(flower)):
+            ff = np.linspace(flower[i],fupper[i],nperoct)
+            fvec = np.concatenate((fvec,ff),axis=0)
+            
+        self.freq = fvec
 ### Function to read the .toml file
 def load_cfg(cfgfile):
     '''
@@ -170,7 +193,7 @@ def compare_spk(freq, *spks, ref = 1.0):
     plt.show()
 
 ### Function to compare spectrums
-def compare_alpha(*alphas, title = 'absorption comparison', freq_max=4000):
+def compare_alpha(*alphas, title = 'absorption comparison', freq_max=4000, save = False, path = '', fname = ''):
     '''
     This function is used to compare the absorption coefficients of several estimations
     '''
@@ -183,17 +206,60 @@ def compare_alpha(*alphas, title = 'absorption comparison', freq_max=4000):
         alpha_leg = list(alpha_dict.keys())[1]
         freq = alpha_dict[freq_leg]
         alpha = alpha_dict[alpha_leg]
-        plt.semilogx(freq, alpha, alpha_color, label = alpha_leg, linewidth = alpha_lw)
+        plt.semilogx(freq, alpha, color = alpha_color, label = alpha_leg, linewidth = alpha_lw)
     plt.grid(linestyle = '--', which='both')
     plt.xscale('log')
-    plt.legend(loc = 'upper left')
-    plt.xticks([50, 100, 500, 1000, 4000, 6000, 10000],
-        ['50', '100', '500', '1k', '4k', '6k', '10k'])
+    plt.legend(loc = 'best')
+    plt.xticks([50, 100, 500, 1000, 2000, 4000, 8000, 10000],
+        ['50', '100', '500', '1k', '2k', '4k', '8k', '10k'])
     plt.xlabel('Frequency [Hz]')
-    plt.ylabel('absorption coefficient [-]')
+    plt.ylabel(r'$\alpha$ [-]')
     plt.ylim((-0.2, 1.2))
-    plt.xlim((0.8 * freq[0], freq_max))
-    plt.show()
+    plt.xlim((80, freq_max))
+    if save:
+        filename = path + fname
+        plt.savefig(fname = filename, format='pdf')
+    # plt.show()
+
+### Function to compare impedances
+def compare_zs(*zs, title = 'surface impedance comparison', freq_max=4000, save = False, path = '', fname = ''):
+    '''
+    This function is used to compare the absorption coefficients of several estimations
+    '''
+    fig, axs = plt.subplots(2,1)
+    for zs_dict in zs:
+        zs_color = zs_dict['color']
+        zs_lw = zs_dict['linewidth']
+        freq_leg = list(zs_dict.keys())[0]
+        zs_leg = list(zs_dict.keys())[1]
+        freq = zs_dict[freq_leg]
+        zs = zs_dict[zs_leg]
+        axs[0].semilogx(freq, np.real(zs), zs_color, linewidth = zs_lw)
+        axs[1].semilogx(freq, np.imag(zs), zs_color, label = zs_leg, linewidth = zs_lw)
+        # plt.semilogx(freq, alpha, alpha_color, label = alpha_leg, linewidth = alpha_lw)
+    axs[0].grid(linestyle = '--', which='both')
+    axs[0].set(ylabel = 'Re{Zs} [-]')
+    axs[0].set(ylim = (0.0, 3.0))
+    axs[0].set(title = title)
+    plt.setp(axs[0], xticks=[50, 100, 500, 1000, 2000, 4000, 8000, 10000], 
+        xticklabels=['50', '100', '500', '1k', '2k', '4k', '8k', '10k'])
+    axs[1].grid(linestyle = '--', which='both')
+    axs[1].set(xlabel = 'Frequency [Hz]')
+    axs[1].set(ylabel = 'Im{Zs} [-]')
+    axs[1].set(ylim = (-20.0, 5.0))
+    axs[1].legend(loc = 'lower right')
+    plt.setp(axs[1], xticks=[50, 100, 500, 1000, 2000, 4000, 8000, 10000], 
+        xticklabels=['50', '100', '500', '1k', '2k', '4k', '8k', '10k'])
+    # plt.xticks([50, 100, 500, 1000, 4000, 6000, 10000],
+    #     ['50', '100', '500', '1k', '4k', '6k', '10k'])
+    plt.xlabel('Frequency [Hz]')
+    # plt.xlim((0.8 * freq[0], freq_max))
+    plt.setp(axs[0], xlim = (0.8 * freq[0], freq_max))
+    plt.setp(axs[1], xlim = (0.8 * freq[0], freq_max))
+    if save:
+        filename = path + fname
+        plt.savefig(fname = filename, format='pdf')
+    # plt.show()
 
 def sph2cart(r, theta, phi):
     '''
@@ -229,3 +295,24 @@ def cart2sph(x,y,z):
     theta = np.arctan2(z, np.sqrt(x**2 + y**2)) # elevation
     r = np.sqrt(x**2 + y**2 + z**2)
     return r, theta, phi
+
+def update_progress(progress):
+    barLength = 20 # Modify this to change the length of the progress bar
+    status = ""
+    if isinstance(progress, int):
+        progress = float(progress)
+    if not isinstance(progress, float):
+        progress = 0
+        status = "error: progress var must be float\r\n"
+    # progress = float("{0:.2f}".format(progress))
+    if progress < 0:
+        progress = 0
+        status = "Halt...\r\n"
+    if progress >= 1:
+        progress = 1
+        status = "Done...\r\n"
+    block = int(round(barLength*progress))
+    text = "\rPercent: [{0}] {1}% {2}".format( "#"*block + "-"*(barLength-block), float("{0:.2f}".format(progress*100)), status)
+    sys.stdout.write(text)
+    sys.stdout.flush()
+    

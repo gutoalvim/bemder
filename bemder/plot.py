@@ -90,7 +90,7 @@ def plot_problem(obj,S=None,R=None,grid_pts=None, pT=None, mode="element", trans
             
         plotly.offline.iplot(fig)
         
-def polar_plot(theta,p,normalize=True,transformation= None,ylim=[-40,0],title = None):
+def polar_plot(theta,p,normalize=True,transformation= None,s_number=0,ylim=[-40,0],title = None,n_average=0):
     import numpy as np
     p2dB = lambda x: 20*np.log10(np.abs(x)/2e-5) 
     if transformation is None:
@@ -98,7 +98,6 @@ def polar_plot(theta,p,normalize=True,transformation= None,ylim=[-40,0],title = 
     if transformation == "dB":
         transformation = p2dB
         P = transformation(p)
-    
 
     if normalize == True:
         for i in range(P.shape[0]):
@@ -109,6 +108,93 @@ def polar_plot(theta,p,normalize=True,transformation= None,ylim=[-40,0],title = 
         if title != None:
             plt.title(title)
         plt.show()
+        
+def polar_plot_3(P,R,AC,fi,n_average=7,ylim=[-30,0],title=None,hold=False,linestyle='-',linewidht=3):
+    import numpy as np
+    pDiffuser = P
+    ppd = {}
+    ddp = {}
+    f_range = AC.freq
+    a=0
+    for i in range(int(len(f_range)/n_average)):
+        dp = np.zeros_like(pDiffuser[0])
+        rp = np.zeros_like(pDiffuser[0])# np.zeros((len(S.coord),pDiffuser[0][0].size),dtype=complex)
+        iic=0
+        ii=0
+        for ii in range(n_average):
+            iic = ii + (i*a)
+            pD = np.abs(pDiffuser[iic,:])
+            dp += pD #np.array([pD[c] for c in pD.keys()]).reshape(len(S.coord),(pDiffuser[0][0].size))
+            # print(iic)
+        # print("STOP")
+        ddp[i] = dp/(n_average)
+        
+        ppd[i] = ddp[i]
+        a=n_average
+    
+    
+    plt.polar(R.theta, 20*np.log10(ppd[fi]/2e-5)-np.amax(20*np.log10(ppd[fi]/2e-5)),ls=linestyle,lw=linewidht)
+    # plt.ylim(ylim)
+    if title != None:
+        plt.title(title)
+    if hold == False:    
+        plt.show()
+        
+    return ppd[fi][:]
+
+def polar_plot_2(P,R,AC,fi,n_average=7,s_number=0,ylim=[-30,0],title=None,hold=False,scatter=False,linestyle='-',linewidht=3,stackFig = None,normalize=True):
+    import numpy as np
+    ir = s_number
+    pDiffuser = P
+    ppd = {}
+    ddp = {}
+    f_range = AC.freq
+
+
+    a=0
+    for i in range(int(len(f_range)/n_average)):
+        dp = np.zeros_like(pDiffuser[0])
+        rp = np.zeros_like(pDiffuser[0])# np.zeros((len(S.coord),pDiffuser[0][0].size),dtype=complex)
+        iic=0
+        ii=0
+        for ii in range(n_average):
+            iic = ii + (i*a)
+            pD = np.abs(pDiffuser.get(iic))
+            dp += pD #np.array([pD[c] for c in pD.keys()]).reshape(len(S.coord),(pDiffuser[0][0].size))
+            # print(iic)
+        # print("STOP")
+        ddp[i] = dp/(n_average)
+        
+        ppd[i] = ddp[i]
+        a=n_average
+        
+    if normalize == True:
+        normalz = np.amax(20*np.log10(ppd[fi][ir,:]/2e-5))
+    else:
+        normalz= 0
+    if scatter == True:
+        fig = plt.figure()
+        ax = fig.add_subplot(111, projection='polar')
+        c = ax.scatter(R.theta, 20*np.log10(ppd[fi][ir,:]/2e-5)-normalz)
+
+    else:
+        if stackFig == None:
+            fig = plt.figure()
+            ax = fig.add_subplot(111, projection='polar')
+            ax.set_thetamin(np.amin(np.rad2deg(R.theta)))
+            ax.set_thetamax(np.amax(np.rad2deg(R.theta)))
+
+        else:
+            ax = stackFig
+
+        ax.plot(R.theta, 20*np.log10(ppd[fi][ir,:]/2e-5)-normalz,ls=linestyle,lw=linewidht)
+    # plt.ylim(ylim)
+    if title != None:
+        plt.title(title)
+    if hold == False:    
+        plt.show()
+        
+    return ax
         
 def polar_3d(R,ps):
     import plotly.figure_factory as ff

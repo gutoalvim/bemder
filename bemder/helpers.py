@@ -3,7 +3,7 @@ import cloudpickle
 import pickle
 import os
 import time
-import bemder.bem_api as bem
+import bemder.bem_api_new as bem
 import matplotlib.pyplot as plt
 import numpy as np
 
@@ -167,7 +167,213 @@ def diffusion_coef(frequency,pDiffuser,pRef, plot=False):
         ax.plot(f_range, Tf)
         ax.set_ylim(0,1)
     return Tf
+def random_diffusion_coef(frequency,pDiffuser,pRef, S,plot=False):
+    f_range = frequency
+    
+    n_average=1
+    Tf = np.zeros([int(len(f_range)/n_average),1],dtype=float)
+    T_ref = np.zeros([len(S.coord),1],dtype=float)
+    T = np.zeros([len(S.coord),1],dtype=float)
+    for i in range(len(f_range)):
+        for ir in range(len(S.coord)):
+            T[ir] = (np.sum(np.abs(pDiffuser[i][ir,:]))**2 - np.sum(np.abs(pDiffuser[i][ir,:])**2))/((len(pDiffuser[i][ir,:].T)-1)*np.sum(np.abs(pDiffuser[i][ir,:])**2))
+            T_ref[ir] = (np.sum(np.abs(pRef[i][ir,:]))**2 - np.sum(np.abs(pRef[i][ir,:])**2))/((len(pRef[i][ir,:].T)-1)*np.sum(np.abs(pRef[i][ir,:])**2))
+        Tf[i] = (np.mean(T) - np.mean(T_ref))/(1-np.mean(T_ref))
+          
+    return Tf
 
+def r_d_coef(frequency, pDiffuser,pRef,S,n_average=7,s_number=False):
+    """
+    
+
+    Parameters
+    ----------
+    frequency : TYPE
+        DESCRIPTION.
+    pDiffuser : TYPE
+        DESCRIPTION.
+    pRef : TYPE
+        DESCRIPTION.
+    S : TYPE
+        DESCRIPTION.
+    n_average : TYPE, optional
+        DESCRIPTION. The default is 7.
+    s_number : TYPE, optional
+        DESCRIPTION. The default is False.
+
+    Returns
+    -------
+    d : TYPE
+        Normalized Diffusion Coefficient.
+
+    """
+    
+    
+    f_range = frequency
+    Tf = np.zeros([int(len(f_range)/n_average),1],dtype=float)
+    Tr = np.zeros([len(S.coord),1],dtype=float)
+    T = np.zeros([len(S.coord),1],dtype=float)
+    ppd = {}
+    ppr = {}
+    ddp = {}
+    rrp = {}
+    a=0
+    for i in range(int(len(f_range)/n_average)):
+        dp = np.zeros_like(pDiffuser[0])
+        rp = np.zeros_like(pDiffuser[0])# np.zeros((len(S.coord),pDiffuser[0][0].size),dtype=complex)
+        iic=0
+        ii=0
+        for ii in range(n_average):
+            iic = ii + (i*a)
+            # pD = np.abs(pDiffuser.get(iic))
+            # pR = np.abs(pRef.get(iic))
+            pD = np.real(np.abs(pDiffuser.get(iic))/np.amax(np.abs(pDiffuser.get(iic))))
+            pR = np.real(np.abs(pRef.get(iic))/np.amax(np.abs(pRef.get(iic))))
+            rp += pR #np.array([pR[c] for c in pR.keys()]).reshape(len(S.coord),(pDiffuser[0][0].size))
+            dp += pD #np.array([pD[c] for c in pD.keys()]).reshape(len(S.coord),(pDiffuser[0][0].size))
+            # print(iic)
+        # print("STOP")
+        ddp[i] = dp/(n_average)
+        rrp[i] = rp/(n_average)
+        
+        ppd[i] = ddp[i]
+        ppr[i] = rrp[i]
+        a=n_average
+        
+    
+    if s_number != False:
+        ir = s_number
+        for ic in range(int(len(f_range)/n_average)):
+            T = (np.sum(np.abs(ppd[ic][ir,:]))**2 - np.sum(np.abs(ppd[ic][ir,:])**2))/((len(ppd[ic][ir,:].T)-1)*np.sum(np.abs(ppd[ic][ir,:])**2))
+            Tr = (np.sum(np.abs(ppr[ic][ir,:]))**2 - np.sum(np.abs(ppr[ic][ir,:])**2))/((len(ppr[ic][ir,:].T)-1)*np.sum(np.abs(ppr[ic][ir,:])**2))
+            Tf[ic] = (T - Tr)/(1-Tr)
+        print(Tf)
+    else:
+            
+        for ic in range(int(len(f_range)/n_average)):
+            for ir in range(len(S.coord)):
+                T[ir] = (np.sum(np.abs(ppd[ic][ir,:]))**2 - np.sum(np.abs(ppd[ic][ir,:])**2))/((len(ppd[ic][ir,:].T)-1)*np.sum(np.abs(ppd[ic][ir,:])**2))
+                Tr[ir] = (np.sum(np.abs(ppr[ic][ir,:]))**2 - np.sum(np.abs(ppr[ic][ir,:])**2))/((len(ppr[ic][ir,:].T)-1)*np.sum(np.abs(ppr[ic][ir,:])**2))
+                
+            Tf[ic] = (np.mean(T) - np.mean(Tr))/(1-np.mean(Tr))
+            # Tf[ic] = np.m'ean(T)
+    
+    idx = np.where(Tf<0)
+    Tf[idx] = 0
+    return Tf
+
+def r_d_coef_spl(frequency, pDiffuser,pRef,S,n_average=7,s_number=False):
+    """
+    
+
+    Parameters
+    ----------
+    frequency : TYPE
+        DESCRIPTION.
+    pDiffuser : TYPE
+        DESCRIPTION.
+    pRef : TYPE
+        DESCRIPTION.
+    S : TYPE
+        DESCRIPTION.
+    n_average : TYPE, optional
+        DESCRIPTION. The default is 7.
+    s_number : TYPE, optional
+        DESCRIPTION. The default is False.
+
+    Returns
+    -------
+    Tf : TYPE
+        DESCRIPTION.
+
+    """
+    f_range = frequency
+    Tf = np.zeros([int(len(f_range)/n_average),1],dtype=float)
+    Tr = np.zeros([len(S.coord),1],dtype=float)
+    T = np.zeros([len(S.coord),1],dtype=float)
+    ppd = {}
+    ppr = {}
+    ddp = {}
+    rrp = {}
+    a=0
+    for i in range(int(len(f_range)/n_average)):
+        dp = np.zeros_like(pDiffuser[0],dtype=float)
+        rp = np.zeros_like(pDiffuser[0],dtype=float)# np.zeros((len(S.coord),pDiffuser[0][0].size),dtype=complex)
+        iic=0
+        ii=0
+        for ii in range(n_average):
+            iic = ii + (i*a)
+            pD = np.real(np.abs(pDiffuser.get(iic))/np.amax(np.abs(pDiffuser.get(iic))))
+            pR = np.real(np.abs(pRef.get(iic))/np.amax(np.abs(pRef.get(iic))))
+            rp += pR #np.array([pR[c] for c in pR.keys()]).reshape(len(S.coord),(pDiffuser[0][0].size))
+            dp += pD #np.array([pD[c] for c in pD.keys()]).reshape(len(S.coord),(pDiffuser[0][0].size))
+            print(iic)
+        print("STOP")
+        ddp[i] = 20*np.log10((dp/(n_average))/2e-5)
+        rrp[i] = 20*np.log10((rp/(n_average))/2e-5)
+        
+        ppd[i] = ddp[i]
+        ppr[i] = rrp[i]
+        a=n_average
+        
+    
+    if s_number != False:
+        ir = s_number
+        for ic in range(int(len(f_range)/n_average)):
+            T = (np.sum(10**(ppd[ic][ir,:]/10))**2 - np.sum(10**(ppd[ic][ir,:]/10)**2))/((len(ppd[ic][ir,:].T)-1)*np.sum(10**(ppd[ic][ir,:]/10)**2))
+            Tr = (np.sum(10**(ppr[ic][ir,:]/10))**2 - np.sum(10**(ppr[ic][ir,:]/10)**2))/((len(ppr[ic][ir,:].T)-1)*np.sum(10**(ppr[ic][ir,:]/10)**2))
+    
+            Tf[ic] = (T - Tr)/(1-Tr)
+    else:
+            
+        for ic in range(int(len(f_range)/n_average)):
+            for ir in range(len(S.coord)):
+                T[ir] = ((np.sum(10**(ppd[ic][ir,:]/10))**2) - np.sum((10**(ppd[ic][ir,:]/10)))**2)/((len(ppd[ic][ir,:].T)-1)*np.sum((10**(ppd[ic][ir,:]/10)**2)))
+                                                                                                     
+                Tr[ir] = ((np.sum(10**(ppr[ic][ir,:]/10))**2) - np.sum((10**(ppr[ic][ir,:]/10)))**2)/((len(ppr[ic][ir,:].T)-1)*np.sum((10**(ppr[ic][ir,:]/10)**2)))
+              
+                # T[ir] = (np.sum(10**(ppd[ic][ir,:]/10))**2 - np.sum(10**(ppd[ic][ir,:]/10)**2))/((len(ppd[ic][ir,:].T)-1)*np.sum(10**(ppd[ic][ir,:]/10)**2))
+                # Tr[ir] = (np.sum(10**(ppr[ic][ir,:]/10))**2 - np.sum(10**(ppr[ic][ir,:]/10)**2))/((len(ppr[ic][ir,:].T)-1)*np.sum(10**(ppr[ic][ir,:]/10)**2))
+        
+            Tf[ic] = (np.mean(T) - np.mean(Tr))/(1-np.mean(Tr))
+    
+    return Tf
+
+def theta_d_coef(frequency, pDiffuser,pRef,S,n_average=7):
+    f_range = frequency
+    Tf = np.zeros([int(len(f_range)/n_average),1],dtype=float)
+
+    ppd = {}
+    ppr = {}
+
+    a=0
+    for i in range(int(len(f_range)/n_average)):
+        dp = [] #np.zeros_like(pDiffuser[0])
+        rp = []# np.zeros_like(pDiffuser[0])# np.zeros((len(S.coord),pDiffuser[0][0].size),dtype=complex)
+        iic=0
+        ii=0
+        for ii in range(n_average):
+            iic = ii + (i*a)
+            pD = np.abs(pDiffuser[iic,:])
+            pR = np.abs(pRef[iic,:])
+            rp.append(pR)# += pR #np.array([pR[c] for c in pR.keys()]).reshape(len(S.coord),(pDiffuser[0][0].size))
+            dp.append(pD)# += pD #np.array([pD[c] for c in pD.keys()]).reshape(len(S.coord),(pDiffuser[0][0].size))
+            # print(iic)
+        # print("STOP")
+        ddp = np.mean(dp,axis=0)#/(n_average)
+        rrp = np.mean(rp,axis=0)#/(n_average)
+        
+        ppd[i] = ddp
+        ppr[i] = rrp
+        a=n_average
+        
+    for ic in range(int(len(f_range)/n_average)):
+        T = (np.sum(np.abs(ppd[ic][:]))**2 - np.sum(np.abs(ppd[ic][:])**2))/((len(ppd[ic][:].T)-1)*np.sum(np.abs(ppd[ic][:])**2))
+        Tr = (np.sum(np.abs(ppr[ic][:]))**2 - np.sum(np.abs(ppr[ic][:])**2))/((len(ppr[ic][:].T)-1)*np.sum(np.abs(ppr[ic][:])**2))
+        
+        Tf[ic] = ((T) - (Tr))/(1-(Tr))
+    
+    return Tf
 def scattering_coef(frequency,pDiffuser,pRef,plot=False):
     f_range = frequency
     s = np.zeros([len(f_range),1])
@@ -180,4 +386,48 @@ def scattering_coef(frequency,pDiffuser,pRef,plot=False):
         ax.plot(f_range, Tf)
         ax.set_ylim(0,1)
         
+    return s
+
+def r_s_coef(frequency, pDiffuser,pRef,S,n_average=7,s_number=False):
+    f_range = frequency
+    sr = np.zeros([len(S.coord),1],dtype=float)
+    s =  np.zeros([int(len(f_range)/n_average),1],dtype=float)
+    ppd = {}
+    ppr = {}
+    ddp = {}
+    rrp = {}
+    a=0
+    for i in range(int(len(f_range)/n_average)):
+        dp = np.zeros_like(pDiffuser[0])
+        rp = np.zeros_like(pDiffuser[0])# np.zeros((len(S.coord),pDiffuser[0][0].size),dtype=complex)
+        iic=0
+        ii=0
+        for ii in range(n_average):
+            iic = ii + (i*a)
+            pD = np.abs(pDiffuser.get(iic))
+            pR = np.abs(pRef.get(iic))
+            rp += pR #np.array([pR[c] for c in pR.keys()]).reshape(len(S.coord),(pDiffuser[0][0].size))
+            dp += pD #np.array([pD[c] for c in pD.keys()]).reshape(len(S.coord),(pDiffuser[0][0].size))
+            print(iic)
+        print("STOP")
+        ddp[i] = dp/(n_average)
+        rrp[i] = rp/(n_average)
+        
+        ppd[i] = ddp[i]
+        ppr[i] = rrp[i]
+        a=n_average
+        
+    
+    if s_number != False:
+        ir = s_number
+        for ic in range(int(len(f_range)/n_average)):
+            s[ic] = 1 - (np.abs(np.sum(ppd[ic][ir,:]*np.conj(ppr[ic][ir,:])))**2/(np.sum(np.abs(ppd[ic][ir,:])**2)*np.sum(np.abs(ppr[ic][ir,:])**2)))
+    else:
+            
+        for ic in range(int(len(f_range)/n_average)):
+            for ir in range(len(S.coord)):
+                sr[ir] = 1 - (np.abs(np.sum(ppd[ic][ir,:]*np.conj(ppr[ic][ir,:])))**2/(np.sum(np.abs(ppd[ic][ir,:])**2)*np.sum(np.abs(ppr[ic][ir,:])**2)))
+        
+            s[ic] = np.mean(sr)
+    
     return s

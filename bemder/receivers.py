@@ -142,7 +142,7 @@ class Receiver():
         self.coord[0:n_x*n_y*n_z, 2] = zv.flatten()
         # print(self.coord)
 
-    def random_3d_array(self, x_len = 1.0, y_len = 1.0, z_len = 1.0, zr = 0.1, n_total = 192, seed = 0):
+    def random_3d_array(self, x_len = 1.0, y_len = 1.0, z_len = 1.0, axis='z',zr = 0.1, n_total = 192, seed = 0):
         '''
         This method initializes a regular three dimensional array of receivers It will overwrite
         self.coord to be a matrix where each line gives a 3D coordinate for each receiver
@@ -157,13 +157,27 @@ class Receiver():
         '''
         # x and y coordinates of the grid
         np.random.seed(seed)
-        xc = -x_len/2 + x_len * np.random.rand(n_total)#np.linspace(-x_len/2, x_len/2, n_x)
-        yc = -y_len/2 + y_len * np.random.rand(n_total)
-        zc = zr + z_len * np.random.rand(n_total)
+        
+        if axis =='z':
+            
+            xc = -x_len/2 + x_len * np.random.rand(n_total)#np.linspace(-x_len/2, x_len/2, n_x)
+            yc = -y_len/2 + y_len * np.random.rand(n_total)
+            zc = zr + z_len * np.random.rand(n_total)
+        
+        if axis =='y':           
+            xc = -x_len/2 + x_len * np.random.rand(n_total)#np.linspace(-x_len/2, x_len/2, n_x)
+            yc = zr + y_len * np.random.rand(n_total)
+            zc = -z_len/2 + z_len * np.random.rand(n_total)       
+            
+        if axis =='x':
+            xc = zr + x_len * np.random.rand(n_total)#np.linspace(-x_len/2, x_len/2, n_x)
+            yc = -y_len/2 + y_len * np.random.rand(n_total)
+            zc = -z_len/2 + z_len * np.random.rand(n_total)      
         # meshgrid
         # xv, yv, zv = np.meshgrid(xc, yc, zc)
         # initialize receiver list in memory
         self.coord = np.zeros((n_total, 3), dtype = np.float32)
+        
         self.coord[0:n_total, 0] = xc.flatten()
         self.coord[0:n_total, 1] = yc.flatten()
         self.coord[0:n_total, 2] = zc.flatten()
