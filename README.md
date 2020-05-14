@@ -46,6 +46,8 @@ Spyder
 ******
 15 - No Spyder (digite "spyder" no Ananconda Prompt), acessar o Python Path Manager (ícone com logo do Python na barra superior), clicar [+ Add Path] e selecionar a pasta do bempp-cl, faça a mesma coisa com a pasta do bemder.
 
+16 - Teste rodando o script Examples/default_test.py
+
 Jupyter
 ******
 16 - Para o jupyter, use o exemplo disponível para começar a simular.
