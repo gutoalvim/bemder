@@ -40,7 +40,7 @@ Tutorial Instalação Bempp - Obs. Todos os textos em CAPS são individuais para
 
 13 - Instalar o Gmsh no Anaconda -- $ conda install -c conda-forge gmsh $
 
-14 - Instalar os ambientes de desenvolvimento preferidos. O Spyder é semelhante ao Matlab. O Jupyter conta com uma interface intuitiva e ferramentas de visualização 3D exclusivas dessa plataforma -- $conda install spyder$ -- $conda install jupyter$
+14 - Instalar os ambientes de desenvolvimento preferidos. O Spyder é semelhante ao Matlab. O Jupyter conta com uma interface intuitiva e ferramentas de visualização 3D exclusivas dessa plataforma -- $ conda install spyder $ -- $ conda install jupyter $
 
 Spyder
 ******
