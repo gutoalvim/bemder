@@ -44,7 +44,7 @@ Tutorial Instalação Bempp - Obs. Todos os textos em CAPS são individuais para
 
 Spyder
 ******
-15 - No Spyder (digite "spyder" no Ananconda Prompt), acessar o Python Path Manager (ícone com logo do Python na barra superior), clicar [+ Add Path] e selecionar a pasta do bempp-cl, faça a mesma coisa com a pasta do bemder.
+15 - No Spyder (digite $ spyder $ no Ananconda Prompt), acessar o Python Path Manager (ícone com logo do Python na barra superior), clicar [+ Add Path] e selecionar a pasta do bempp-cl, faça a mesma coisa com a pasta do bemder.
 
 16 - Teste rodando o script Examples/default_test.py
 
