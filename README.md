@@ -36,7 +36,7 @@ Tutorial Instalação Bempp - Obs. Todos os textos em CAPS são individuais para
 
 11 - Instalar os pacotes necessários -- $ pip install numpy scipy meshio plotly numba matplotlib$
 
-12 -- $conda install quaternion$
+12 -- $ conda install -c conda-forge quaternion $
 
 13 - Instalar o Gmsh no Anaconda -- $ conda install -c conda-forge gmsh $
 
