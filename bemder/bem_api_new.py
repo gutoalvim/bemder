@@ -209,7 +209,7 @@ class ExteriorBEM:
     
     AP_init = ctrl.AirProperties()
     AC_init = ctrl.AlgControls(AP_init.c0, 1000,1000,10)
-    S_init = sources.Source("plane",coord=[2,0,0])
+    S_init = sources.Source("spherical",coord=[2,0,0])
     R_init = receivers.Receiver(coord=[1.5,0,0])
     grid_init = bempp.api.shapes.regular_sphere(2)
     
