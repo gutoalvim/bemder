@@ -22,9 +22,9 @@ Tutorial Instalação Bempp - Obs. Todos os textos em CAPS são individuais para
 
 4 -- $ conda install git $ 
 
-5 - Criar uma pasta para os pacotes de simulação -- $ mkdir C:\Users\USER\Documents\PYTHON_BEM $
+5 - Criar uma pasta para os pacotes de simulação -- $ mkdir %UserProfile%\Documents\PYTHON_BEM $
 
-6 - Navegar até a pasta -- $ cd C:\Users\USER\Documents\PYTHON_BEM $
+6 - Navegar até a pasta -- $ cd %UserProfile%\Documents\PYTHON_BEM $
 
 7 -- $ git clone https://github.com/bempp/bempp-cl.git $
 
