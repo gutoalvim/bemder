@@ -6,7 +6,7 @@ Created on Sat Mar 21 23:06:02 2020
 """
 from bemder import bem_api_new as BEM
 s1 = BEM.ExteriorBEM()
-bp1 = s1.hard_bemsolve()
+bp1 = s1.impedance_bemsolve()
 
 s1.bem_save("test")
 #%%
