@@ -138,6 +138,8 @@ def bem_load(filename,ext='.pickle'):
                     bData[i] = [u, un]
                 bbd[sol] = bData
         elif IS==0:
+            bData = {}
+
             for sol in range(len(sAC.freq)):
                 u = bempp.api.GridFunction(space, coefficients=simulation_data['bd'][sol][0])
                 un = bempp.api.GridFunction(space, coefficients=simulation_data['bd'][sol][1])
@@ -522,7 +524,8 @@ class ExteriorBEM:
             return self.bD
         
         if individual_sources==False:
-            
+            self.boundData = {}  
+           
             for fi in range(np.size(self.f_range)):
     
     
@@ -711,12 +714,11 @@ class ExteriorBEM:
                 #         self.space, pts.T, k)
                 #     pScat =  -slp_pot.evaluate(boundD[fi][0])
                     
-                if self.BC == "robin":
-                    dlp_pot = bempp.api.operators.potential.helmholtz.double_layer(
-                        self.space, pts.T, k)
-                    slp_pot = bempp.api.operators.potential.helmholtz.single_layer(
-                        self.space, pts.T, k)
-                    pScat =  dlp_pot.evaluate(boundD[fi][0])-slp_pot.evaluate(boundD[fi][1])
+                dlp_pot = bempp.api.operators.potential.helmholtz.double_layer(
+                    self.space, pts.T, k)
+                slp_pot = bempp.api.operators.potential.helmholtz.single_layer(
+                    self.space, pts.T, k)
+                pScat =  dlp_pot.evaluate(boundD[fi][0])-slp_pot.evaluate(boundD[fi][1])
                     
                 if self.wavetype == "plane":
                     pInc = self.planewave(fi,pts,ir)
