@@ -16,29 +16,29 @@ Tutorial Instalação Bempp - Obs. Todos os textos em CAPS são individuais para
 
 1 - Baixar e instalar o Anaconda Python 3.7 -- https://www.anaconda.com/distribution/#download-section
 
-2 - Abrir Anaconda Prompt criar um novo ambiente -- $conda create -n ENVNAME python=3.7$ - (Obs. ENVNAME é o nome de seu ambiente)
+2 - Abrir Anaconda Prompt criar um novo ambiente -- $ conda create -n ENVNAME python=3.7 $ - (Obs. ENVNAME é o nome de seu ambiente)
 
-3 - Ativar o novo ambiente no Anacoda Prompt com -- $conda activate ENVNAME$
+3 - Ativar o novo ambiente no Anacoda Prompt com -- $ conda activate ENVNAME $
 
-4 -- $conda install git$ 
+4 -- $ conda install git $ 
 
-5 - Criar uma pastar para os pacotes de simulação -- $mkdir C:\Users\USER\Documents\PYTHON_BEM$
+5 - Criar uma pastar para os pacotes de simulação -- $ mkdir C:\Users\USER\Documents\PYTHON_BEM $
 
-6 - Navegar até a pasta -- $cd C:\Users\USER\Documents\PYTHON_BEM$
+6 - Navegar até a pasta -- $ cd C:\Users\USER\Documents\PYTHON_BEM $
 
-7 -- $git clone https://github.com/bempp/bempp-cl.git$
+7 -- $ git clone https://github.com/bempp/bempp-cl.git $
 
-8 -- $git clone https://github.com/gutoalvim/bemder.git$
+8 -- $ git clone https://github.com/gutoalvim/bemder.git $
 
-9 -- $cd bemder$
+9 -- $ cd bemder $
 
-10 -- $pip install pyopencl-2020.1+cl12-cp37-cp37m-win_amd64.whl$
+10 -- $ pip install pyopencl-2020.1+cl12-cp37-cp37m-win_amd64.whl $
 
-11 - Instalar os pacotes necessários -- $pip install numpy scipy meshio plotly numba matplotlib$
+11 - Instalar os pacotes necessários -- $ pip install numpy scipy meshio plotly numba matplotlib$
 
 12 -- $conda install quaternion$
 
-13 - Instalar o Gmsh no Anaconda -- $conda install -c conda-forge gmsh$
+13 - Instalar o Gmsh no Anaconda -- $ conda install -c conda-forge gmsh $
 
 14 - Instalar os ambientes de desenvolvimento preferidos. O Spyder é semelhante ao Matlab. O Jupyter conta com uma interface intuitiva e ferramentas de visualização 3D exclusivas dessa plataforma -- $conda install spyder$ -- $conda install jupyter$
 
