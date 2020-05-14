@@ -16,9 +16,9 @@ Tutorial Instalação Bempp - Obs. Todos os textos em CAPS são individuais para
 
 1 - Baixar e instalar o Anaconda Python 3.7 -- https://www.anaconda.com/distribution/#download-section
 
-2 - Abrir Anaconda Prompt criar um novo ambiente -- conda create env -n ENVNAME python=3.7 (Obs. ENVNAME é o nome de seu ambiente)
+2 - Abrir Anaconda Prompt criar um novo ambiente -- conda create -n ENVNAME python=3.7 - (Obs. ENVNAME é o nome de seu ambiente)
 
-3 - Ativar o novo ambiente no Anacoda Prompt com -- conda actiavte ENVNAME
+3 - Ativar o novo ambiente no Anacoda Prompt com -- conda activate ENVNAME
 
 4 -- Conda install git 
 
@@ -30,21 +30,25 @@ Tutorial Instalação Bempp - Obs. Todos os textos em CAPS são individuais para
 
 8 -- git clone https://github.com/gutoalvim/bemder.git
 
-9 -- pip install pyopencl-2019.1.2+cl12-cp37-cp37m-win_amd64.whl
+9 -- cd bemder
 
-10 - Instalar os pacotes necessários -- pip install numpy scipy meshio plotly numba
+10 -- pip install pyopencl-2020.1+cl12-cp37-cp37m-win_amd64.whl
 
-11 - Instalar o Gmsh no Anaconda -- conda install -c conda-forge gmsh
+11 - Instalar os pacotes necessários -- pip install numpy scipy meshio plotly numba matplotlib
 
-12 - Instalar os ambientes de desenvolvimento preferidos. O Spyder é semelhante ao Matlab. O Jupyter conta com uma interface intuitiva e ferramentas de visualização 3D exclusivas dessa plataforma -- conda install spyder -- conda install jupyter
+12 -- conda install quaternion
+
+13 - Instalar o Gmsh no Anaconda -- conda install -c conda-forge gmsh
+
+14 - Instalar os ambientes de desenvolvimento preferidos. O Spyder é semelhante ao Matlab. O Jupyter conta com uma interface intuitiva e ferramentas de visualização 3D exclusivas dessa plataforma -- conda install spyder -- conda install jupyter
 
 Spyder
 ******
-13 - No Spyder, acessar o Python Path Manager (ícone com logo do Python na barra superior), clicar [+ Add Path] e selecionar a pasta do bempp-cl, faça a mesma coisa com a pasta do bemder.
+15 - No Spyder (digite "spyder" no Ananconda Prompt), acessar o Python Path Manager (ícone com logo do Python na barra superior), clicar [+ Add Path] e selecionar a pasta do bempp-cl, faça a mesma coisa com a pasta do bemder.
 
 Jupyter
 ******
-14 - Para o jupyter, use o exemplo disponível para começar a simular.
+16 - Para o jupyter, use o exemplo disponível para começar a simular.
 
 
 Python interface
