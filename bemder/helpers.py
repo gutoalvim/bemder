@@ -239,18 +239,27 @@ def r_d_coef(frequency, pDiffuser,pRef,S,n_average=7,s_number=False):
         ppd[i] = ddp[i]
         ppr[i] = rrp[i]
         a=n_average
+    if s_number == 'sum':
+        for ic in range(int(len(f_range)/n_average)):
+            ir=0
+            for ir in range(len(S.coord)):
+                T[ir] = (np.sum(np.abs(np.sum(ppd[ic])))**2 - np.sum(np.abs(np.sum(ppd[ic]))**2))/((len(ppd[ic].T)-1)*np.sum(np.abs(np.sum(ppd[ic])**2)))
+                Tr[ir] = (np.sum(np.abs(np.sum(ppr[ic])))**2 - np.sum(np.abs(np.sum(ppr[ic]))**2))/((len(ppr[ic].T)-1)*np.sum(np.abs(np.sum(ppr[ic])**2)))
+                
+            Tf[ic] = (np.mean(T) - np.mean(Tr))/(1-np.mean(Tr))        
         
     
-    if s_number != False:
+    if type(s_number) == int or type(a) == float:
         ir = s_number
         for ic in range(int(len(f_range)/n_average)):
             T = (np.sum(np.abs(ppd[ic][ir,:]))**2 - np.sum(np.abs(ppd[ic][ir,:])**2))/((len(ppd[ic][ir,:].T)-1)*np.sum(np.abs(ppd[ic][ir,:])**2))
             Tr = (np.sum(np.abs(ppr[ic][ir,:]))**2 - np.sum(np.abs(ppr[ic][ir,:])**2))/((len(ppr[ic][ir,:].T)-1)*np.sum(np.abs(ppr[ic][ir,:])**2))
             Tf[ic] = (T - Tr)/(1-Tr)
         print(Tf)
-    else:
+    elif s_number=='random':
             
         for ic in range(int(len(f_range)/n_average)):
+            ir=0
             for ir in range(len(S.coord)):
                 T[ir] = (np.sum(np.abs(ppd[ic][ir,:]))**2 - np.sum(np.abs(ppd[ic][ir,:])**2))/((len(ppd[ic][ir,:].T)-1)*np.sum(np.abs(ppd[ic][ir,:])**2))
                 Tr[ir] = (np.sum(np.abs(ppr[ic][ir,:]))**2 - np.sum(np.abs(ppr[ic][ir,:])**2))/((len(ppr[ic][ir,:].T)-1)*np.sum(np.abs(ppr[ic][ir,:])**2))
@@ -289,8 +298,11 @@ def r_d_coef_spl(frequency, pDiffuser,pRef,S,n_average=7,s_number=False):
     """
     f_range = frequency
     Tf = np.zeros([int(len(f_range)/n_average),1],dtype=float)
+    T = np.zeros([int(len(f_range)/n_average),1],dtype=float)
+
     Tr = np.zeros([len(S.coord),1],dtype=float)
     T = np.zeros([len(S.coord),1],dtype=float)
+
     ppd = {}
     ppr = {}
     ddp = {}
@@ -339,13 +351,18 @@ def r_d_coef_spl(frequency, pDiffuser,pRef,S,n_average=7,s_number=False):
     
     return Tf
 
-def theta_d_coef(frequency, pDiffuser,pRef,S,n_average=7):
+def theta_d_coef(frequency, pDiffuser,pRef=None,S,n_average=7):
     f_range = frequency
     Tf = np.zeros([int(len(f_range)/n_average),1],dtype=float)
+    Tt = np.zeros([int(len(f_range)/n_average),1],dtype=float)
+
 
     ppd = {}
     ppr = {}
-
+    zing = 0
+    if pRef == None:
+        pRef = pDiffuser
+        zing = 1
     a=0
     for i in range(int(len(f_range)/n_average)):
         dp = [] #np.zeros_like(pDiffuser[0])
@@ -371,8 +388,11 @@ def theta_d_coef(frequency, pDiffuser,pRef,S,n_average=7):
         T = (np.sum(np.abs(ppd[ic][:]))**2 - np.sum(np.abs(ppd[ic][:])**2))/((len(ppd[ic][:].T)-1)*np.sum(np.abs(ppd[ic][:])**2))
         Tr = (np.sum(np.abs(ppr[ic][:]))**2 - np.sum(np.abs(ppr[ic][:])**2))/((len(ppr[ic][:].T)-1)*np.sum(np.abs(ppr[ic][:])**2))
         
+        Tt[ic]=T
         Tf[ic] = ((T) - (Tr))/(1-(Tr))
-    
+    if zing == 1:
+        Tf=Tt
+        
     return Tf
 def scattering_coef(frequency,pDiffuser,pRef,plot=False):
     f_range = frequency
