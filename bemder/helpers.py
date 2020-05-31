@@ -351,7 +351,7 @@ def r_d_coef_spl(frequency, pDiffuser,pRef,S,n_average=7,s_number=False):
     
     return Tf
 
-def theta_d_coef(frequency, pDiffuser,pRef=None,S,n_average=7):
+def theta_d_coef(frequency, pDiffuser,pRef,S,n_average=7):
     f_range = frequency
     Tf = np.zeros([int(len(f_range)/n_average),1],dtype=float)
     Tt = np.zeros([int(len(f_range)/n_average),1],dtype=float)
@@ -359,11 +359,6 @@ def theta_d_coef(frequency, pDiffuser,pRef=None,S,n_average=7):
 
     ppd = {}
     ppr = {}
-    zing = 0
-    if pRef == None:
-        pRef = pDiffuser
-        zing = 1
-    a=0
     for i in range(int(len(f_range)/n_average)):
         dp = [] #np.zeros_like(pDiffuser[0])
         rp = []# np.zeros_like(pDiffuser[0])# np.zeros((len(S.coord),pDiffuser[0][0].size),dtype=complex)
@@ -389,10 +384,7 @@ def theta_d_coef(frequency, pDiffuser,pRef=None,S,n_average=7):
         Tr = (np.sum(np.abs(ppr[ic][:]))**2 - np.sum(np.abs(ppr[ic][:])**2))/((len(ppr[ic][:].T)-1)*np.sum(np.abs(ppr[ic][:])**2))
         
         Tt[ic]=T
-        Tf[ic] = ((T) - (Tr))/(1-(Tr))
-    if zing == 1:
-        Tf=Tt
-        
+        Tf[ic] = ((T) - (Tr))/(1-(Tr))   
     return Tf
 def scattering_coef(frequency,pDiffuser,pRef,plot=False):
     f_range = frequency
