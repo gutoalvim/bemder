@@ -32,7 +32,7 @@ Tutorial Instalação Bempp - Obs. Todos os textos em CAPS são individuais para
 
 9 -- $ pip install pyopencl-2020.1+cl12-cp37-cp37m-win_amd64.whl $
 
-10 - Instalar os pacotes necessários -- $ pip install numpy scipy meshio plotly numba matplotlib bempp-cl$
+10 - Instalar os pacotes necessários -- $ pip install numpy scipy meshio plotly numba matplotlib bempp-cl cloudpickle$
 
 12 -- $ conda install -c conda-forge quaternion $
 
