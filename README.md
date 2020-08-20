@@ -26,21 +26,19 @@ Tutorial Instalação Bempp - Obs. Todos os textos em CAPS são individuais para
 
 6 - Navegar até a pasta -- $ cd %UserProfile%\Documents\PYTHON_BEM $
 
-7 -- $ git clone https://github.com/bempp/bempp-cl.git $
+7 -- $ git clone https://github.com/gutoalvim/bemder.git $
 
-8 -- $ git clone https://github.com/gutoalvim/bemder.git $
+8 -- $ cd bemder $
 
-9 -- $ cd bemder $
+9 -- $ pip install pyopencl-2020.1+cl12-cp37-cp37m-win_amd64.whl $
 
-10 -- $ pip install pyopencl-2020.1+cl12-cp37-cp37m-win_amd64.whl $
-
-11 - Instalar os pacotes necessários -- $ pip install numpy scipy meshio plotly numba matplotlib$
+10 - Instalar os pacotes necessários -- $ pip install numpy scipy meshio plotly numba matplotlib bempp-cl cloudpickle$
 
 12 -- $ conda install -c conda-forge quaternion $
 
 13 - Instalar o Gmsh no Anaconda -- $ conda install -c conda-forge gmsh $
 
-14 - Instalar os ambientes de desenvolvimento preferidos. O Spyder é semelhante ao Matlab. O Jupyter conta com uma interface intuitiva e ferramentas de visualização 3D exclusivas dessa plataforma -- $ conda install spyder $ -- $ conda install jupyter $
+14 - Instalar os ambientes de desenvolvimento preferidos. O Spyder é semelhante ao Matlab. O Jupyter conta com uma interface intuitiva e ferramentas de visualização 3D exclusivas dessa plataforma -- $ conda install -c anaconda spyder $ -- $ pip install jupyter $
 
 Spyder
 ******
