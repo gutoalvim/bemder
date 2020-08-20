@@ -458,10 +458,6 @@ class ExteriorBEM:
                     self.space, self.space, self.space)
                 dlp = bempp.api.operators.boundary.helmholtz.double_layer(
                     self.space, self.space, self.space, k)
-                adlp = bempp.api.operators.boundary.helmholtz.adjoint_double_layer(
-                    self.space, self.space, self.space, k)
-                hyp = bempp.api.operators.boundary.helmholtz.hypersingular(
-                    self.space, self.space, self.space, k)
                 slp = bempp.api.operators.boundary.helmholtz.single_layer(
                     self.space, self.space, self.space, k)
                 
@@ -477,10 +473,14 @@ class ExteriorBEM:
                         def combined_data(r, n, domain_index, result):
                             with numba.objmode():
                                 result[0] = 0
-                                ap = np.linalg.norm(self.ir0) 
-                                pos = (r[0]*self.ir0[0]+r[1]*self.ir0[1]+r[2]*self.ir0[2])
-                                nm = (((n[0]-1)*self.ir0[0]/ap)+((n[1]-1)*self.ir0[1]/ap)+((n[2]-1)*self.ir0[2]/ap))
-                                result[0] = self.q.flat[i]*(np.exp(1j * k * pos/ap))
+                                for i in range(len(self.r0.T)):
+                                    ap = np.linalg.norm(self.r0[:,i]) 
+                                    pos = (r[0]*self.r0[0,i]+r[1]*self.r0[1,i]+r[2]*self.r0[2,i])
+                                    # nm = (((n[0]-1)*self.r0[0,i]/ap)+((n[1]-1)*self.r0[1,i]/ap)+((n[2]-1)*self.r0[2,i]/ap))
+                                    # result[0] += -(ni*1j * k *np.exp(1j * k * pos/np.linalg.norm(self.r0[:,i]))*nm
+                                    #               + a*self.mu[domain_index][fi]*np.exp(1j * k * pos/np.linalg.norm(self.r0[:,i])))
+                                    result[0] += self.q.flat[i]*(np.exp(1j * k * pos/ap))
+    
         
                     elif self.wavetype == "spherical":
                     
@@ -554,10 +554,6 @@ class ExteriorBEM:
                     self.space, self.space, self.space)
                 dlp = bempp.api.operators.boundary.helmholtz.double_layer(
                     self.space, self.space, self.space, k)
-                adlp = bempp.api.operators.boundary.helmholtz.adjoint_double_layer(
-                    self.space, self.space, self.space, k)
-                hyp = bempp.api.operators.boundary.helmholtz.hypersingular(
-                    self.space, self.space, self.space, k)
                 slp = bempp.api.operators.boundary.helmholtz.single_layer(
                     self.space, self.space, self.space, k)
                 
@@ -616,7 +612,182 @@ class ExteriorBEM:
                 
             return self.boundData
     
+    def kirchhoff_bemsolve(self,device="cpu",individual_sources=False):
+        """
+        Computes de Bempp gridFunctions on the surface using the Kirchhoff approximation.
+        To set a physical group surface to have pressure=0, attribute the domain_index=213 in Gmsh.
 
+        Parameters
+        ----------
+        device : TYPE, optional
+            DESCRIPTION. The default is "cpu".
+        individual_sources : TYPE, optional
+            DESCRIPTION. The default is False.
+
+        Raises
+        ------
+        TypeError
+            DESCRIPTION.
+
+        Returns
+        -------
+        TYPE
+            DESCRIPTION.
+
+        """
+
+        if device == "cpu":     
+            helpers.set_cpu()
+        if device == "gpu":
+            helpers.set_cpu()
+        self.bD={}
+        if self.mu == None:
+            self.mu = {}
+            for i in (np.unique(self.grid.domain_indices)):
+                self.mu[i] = np.zeros_like(self.f_range)
+
+        if self.v == None:
+            self.v = {}
+            for i in (np.unique(self.grid.domain_indices)):
+                self.v[i] = np.zeros_like(self.f_range)        
+        # mu_fi = np.array([self.mu[i] for i in self.mu.keys()])
+        self.space = bempp.api.function_space(self.grid, "DP", 0)
+        if individual_sources==True:
+            for fi in range(np.size(self.f_range)):
+                self.boundData = {}  
+                f = self.f_range[fi] #Convert index to frequency
+                k = 2*np.pi*f/self.c0 # Calculate wave number
+                
+                @bempp.api.real_callable
+                def mu_fun_r(x,n,domain_index,result):
+                    with numba.objmode():
+                        result[0]=np.real(self.mu[domain_index][fi])
+                    
+                @bempp.api.real_callable
+                def mu_fun_i(x,n,domain_index,result):
+                    with numba.objmode():
+                        result[0]=-np.imag(self.mu[domain_index][fi])
+                
+                mu_op_r = bempp.api.MultiplicationOperator(bempp.api.GridFunction(self.space,fun=mu_fun_r),self.space,self.space,self.space)
+                mu_op_i = bempp.api.MultiplicationOperator(bempp.api.GridFunction(self.space,fun=mu_fun_i),self.space,self.space,self.space)
+                
+                @bempp.api.real_callable
+                def v_data(x, n, domain_index, result):
+                    with numba.objmode():
+                        result[0] = self.v[domain_index][fi]
+                
+                ni = (1j/k)
+                a = 1j*k*self.c0*self.rho0
+                icc=0
+                for icc in range(len(self.r0.T)):
+                    # self.ir0 = self.r0[:,i].T
+
+                    if self.wavetype == "plane":
+                        
+                        @bempp.api.complex_callable
+                        def combined_data(r, n, domain_index, result):
+                            with numba.objmode():
+                                result[0] = 0
+                                ap = np.linalg.norm(self.r0) 
+                                pos = (r[0]*self.r0[0]+r[1]*self.r0[1]+r[2]*self.r0[2])
+                                nm = (((n[0]-1)*self.r0[0]/ap)+((n[1]-1)*self.r0[1]/ap)+((n[2]-1)*self.r0[2]/ap))
+                                result[0] = self.q.flat[i]*(np.exp(1j * k * pos/ap))
+        
+                    elif self.wavetype == "spherical":
+                    
+                        @bempp.api.complex_callable
+                        def combined_data(r, n, domain_index, result):
+                            with numba.objmode():
+                                    pos  = np.linalg.norm(r-self.r0[:,icc].reshape(1,3),axis=1)
+                                    val  = self.q.flat[icc]*np.exp(1j*k*pos)/(pos)
+                                    result[0] = 2*(val)#/(pos**2) * (1j*k*pos-1)* np.dot(r-self.r0[:,i],n-1) + 1j*self.mu[domain_index][fi]*k*val))
+                                    # print(val)
+                    
+                    else:
+                        raise TypeError("Wavetype must be plane or spherical")      
+        
+                    v_fun = bempp.api.GridFunction(self.space, fun=v_data)
+                        
+                    monopole_fun = bempp.api.GridFunction(self.space, fun=combined_data)
+                    
+                    Y = a*(mu_op_r+1j*mu_op_i)
+                    boundP = monopole_fun
+                
+                    boundU = -Y*boundP + a*v_fun#- monopole_fun
+                    
+                    self.boundData[icc] = [boundP, boundU]
+                    # u[fi] = boundU
+                    
+                    self.BC = "robin"
+                    self.IS = 1
+                    
+                    print('{} Hz - Source {}/{}'.format(self.f_range[fi],icc+1,len(self.r0.T)))
+
+                    
+                print('{} / {}'.format(fi+1,np.size(self.f_range)))
+                    
+                self.bD[fi] = self.boundData 
+                
+            return self.bD
+        
+        if individual_sources==False:
+            self.boundData = {}  
+           
+            for fi in range(np.size(self.f_range)):
+    
+    
+                f = self.f_range[fi] #Convert index to frequency
+                k = 2*np.pi*f/self.c0 # Calculate wave number
+                
+                
+                ni = (1j/k)
+                a = 1j*k*self.c0*self.rho0
+                
+                if self.wavetype == "plane":
+                    
+                    @bempp.api.complex_callable
+                    def combined_data(r, n, domain_index, result):
+                        with numba.objmode():
+                            result[0] = 0
+                            for i in range(len(self.r0.T)):
+                                ap = np.linalg.norm(self.r0[:,i]) 
+                                pos = (r[0]*self.r0[0,i]+r[1]*self.r0[1,i]+r[2]*self.r0[2,i])
+                                nm = (((n[0]-1)*self.r0[0,i]/ap)+((n[1]-1)*self.r0[1,i]/ap)+((n[2]-1)*self.r0[2,i]/ap))
+                                # result[0] += -(ni*1j * k *np.exp(1j * k * pos/np.linalg.norm(self.r0[:,i]))*nm
+                                #               + a*self.mu[domain_index][fi]*np.exp(1j * k * pos/np.linalg.norm(self.r0[:,i])))
+                                result[0] += self.q.flat[i]*(np.exp(1j * k * pos/ap))
+    
+                elif self.wavetype == "spherical":
+                    
+                    @bempp.api.complex_callable
+                    def combined_data(r, n, domain_index, result):
+                        with numba.objmode():
+                            result[0]=0
+                            
+                            for i in range(len(self.r0.T)): 
+                                if domain_index==213:
+                                    result[0]=0
+                                else:
+                                    pos  = np.linalg.norm(r-self.r0[:,i].reshape(1,3),axis=1)
+                                    val  = self.q.flat[i]*np.exp(1j*k*pos)/(pos)
+                                    result[0] += (2*(val))#/(pos**2) * (1j*k*pos-1)* np.dot(r-self.r0[:,i],n-1) + 1j*self.mu[domain_index][fi]*k*val))
+                                # print(val)
+                    
+                else:
+                    raise TypeError("Wavetype must be plane or spherical")      
+    
+                    
+                monopole_fun = bempp.api.GridFunction(self.space, fun=combined_data)
+                boundP = -monopole_fun
+                boundU = 0*boundP
+                self.boundData[fi] = [boundP, boundU]
+                # u[fi] = boundU
+                
+                self.BC = "robin"
+                self.IS = 0
+                print('{} / {}'.format(fi+1,np.size(self.f_range)))
+                
+            return self.boundData
     def monopole(self,fi,pts,ir):
         
         pInc = np.zeros(pts.shape[0], dtype='complex128')
@@ -630,13 +801,16 @@ class ExteriorBEM:
             
         return pInc
     
-    def planewave(self,fi,pts):
+    def planewave(self,fi,pts,ir):
         pInc = np.zeros(pts.shape[0], dtype='complex128')
-        
-        for i in range(len(self.r0.T)): 
+        if self.IS==1:
+            pos = pts[:,0]*self.r0[0,ir]+pts[:,1]*self.r0[1,ir]+pts[:,2]*self.r0[2,ir]
+            pInc = self.q.flat[ir]*np.exp(1j*(2*np.pi*self.f_range[fi]/self.c0)*pos/np.linalg.norm(self.r0[:,ir]))
+        else:
+            for i in range(len(self.r0.T)): 
             # pos = np.dot(pts,self.r0[i])/np.linalg.norm(self.r0[fi])
-            pos = pts[:,0]*self.r0[0,i]+pts[:,1]*self.r0[1,i]+pts[:,2]*self.r0[2,i]
-            pInc += self.q.flat[i]*np.exp(1j*(2*np.pi*self.f_range[fi]/self.c0)*pos/np.linalg.norm(self.r0[:,i]))
+                pos = pts[:,0]*self.r0[0,i]+pts[:,1]*self.r0[1,i]+pts[:,2]*self.r0[2,i]
+                pInc += self.q.flat[i]*np.exp(1j*(2*np.pi*self.f_range[fi]/self.c0)*pos/np.linalg.norm(self.r0[:,i]))
             
         return (pInc)
     
@@ -864,7 +1038,7 @@ class ExteriorBEM:
         return  np.array([vx[i] for i in vx.keys()]).reshape(len(vx),len(R.coord)),np.array([vy[i] for i in vy.keys()]).reshape(len(vy),len(R.coord)),np.array([vz[i] for i in vz.keys()]).reshape(len(vz),len(R.coord))    
 
 
-    def combined_grid_evaluate(self,boundData,fi=0,plane="z",d=0,grid_size=[4,4],n_grid_pts=600):
+    def combined_grid_evaluate(self,boundData,fi=0,plane="z",d=0,grid_size=[4,4],n_grid_pts=600,device='cpu'):
         
         """
         Evaluates and plots the SPL in symmetrical grid for a mesh centered at [0,0,0].
@@ -888,15 +1062,16 @@ class ExteriorBEM:
         pT = {}
         pTI = {}
         pTS = {}
-        
+        if device == "cpu":     
+            helpers.set_cpu()
+        if device == "gpu":
+            helpers.set_cpu()
         k = 2*np.pi*self.f_range[fi]/self.c0
-
-        helpers.set_gpu()
         if plane == 'z':
             
             n_grid_points = n_grid_pts
             plot_grid = np.mgrid[-grid_size[0]/2:grid_size[0]/2:n_grid_points*1j, -grid_size[1]/2:grid_size[1]/2:n_grid_points*1j]
-            grid_pts = np.vstack((plot_grid[0].ravel(),plot_grid[1].ravel(),d+np.zeros(plot_grid[0].size)))
+            grid_pts = np.vstack((plot_grid[0].ravel()+100,plot_grid[1].ravel(),d+np.zeros(plot_grid[0].size)))
             
         if plane == 'y':
             n_grid_points = n_grid_pts
@@ -909,29 +1084,18 @@ class ExteriorBEM:
             grid_pts = np.vstack((d+np.zeros(plot_grid[0].size),plot_grid[0].ravel(),plot_grid[1].ravel()))
             
 
-        if self.BC == "neumann":
-            dlp_pot = bempp.api.operators.potential.helmholtz.double_layer(
-                self.space, grid_pts, k)
-            pScat =  dlp_pot.evaluate(boundData[fi][0])
-                
-        elif self.BC == "dirichlet":
-            slp_pot = bempp.api.operators.potential.helmholtz.single_layer(
-                self.space, grid_pts, k)
-            pScat =  -slp_pot.evaluate(boundData[fi][0])
-            
-        elif self.BC == "robin":
-            dlp_pot = bempp.api.operators.potential.helmholtz.double_layer(
-                self.space, grid_pts, k)
-            slp_pot = bempp.api.operators.potential.helmholtz.single_layer(
-                self.space, grid_pts, k)
-            pScat =  dlp_pot.evaluate(boundData[fi][0])-slp_pot.evaluate(boundData[fi][1])
+        dlp_pot = bempp.api.operators.potential.helmholtz.double_layer(
+            self.space, grid_pts, k)
+        slp_pot = bempp.api.operators.potential.helmholtz.single_layer(
+            self.space, grid_pts, k)
+        pScat =  dlp_pot.evaluate(boundData[fi][0])-slp_pot.evaluate(boundData[fi][1])
             
         
         if self.wavetype == "plane":
-            pInc = self.planewave(fi,grid_pts.T)
+            pInc = self.planewave(fi,grid_pts.T,ir=0)
             
         if self.wavetype == "spherical":
-            pInc = self.monopole(fi,grid_pts.T)
+            pInc = self.monopole(fi,grid_pts.T,ir=0)
             
         grid_pT = (pScat+pInc)
         grid_pTI = (np.real(pInc))
@@ -1182,6 +1346,7 @@ class RoomBEM:
             @bempp.api.real_callable
             def mu_fun_r(r,n,domain_index,result):
                 with numba.objmode():
+
                     result[0]=np.real((self.mu[domain_index][fi]))
             @bempp.api.real_callable
             def mu_fun_i(r,n,domain_index,result):

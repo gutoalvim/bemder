@@ -43,12 +43,14 @@ def plot_problem(obj,S=None,R=None,grid_pts=None, pT=None, mode="element", trans
         fig['layout']['scene'].update(go.layout.Scene(aspectmode='data'))
         
         if R != None:
-            fig.add_trace(go.Scatter3d(x = R.coord[:,0], y = R.coord[:,1], z = R.coord[:,2],mode='markers',name="Receivers"))
+            fig.add_trace(go.Scatter3d(x = R.coord[:,0], y = R.coord[:,1], z = R.coord[:,2],marker=dict(size=8, color='rgb(0, 0, 128)', symbol='circle'),name="Receivers"))
             
         if S != None:    
             if S.wavetype == "spherical":
-                fig.add_trace(go.Scatter3d(x = S.coord[:,0], y = S.coord[:,1], z = S.coord[:,2],mode='markers',name="Sources"))
-        
+                fig.add_trace(go.Scatter3d(x = S.coord[:,0], y = S.coord[:,1], z = S.coord[:,2],marker=dict(size=8, color='rgb(128, 0, 0)', symbol='square'),name="Sources"))
+
+        fig.add_trace(go.Mesh3d(x=[-6,6,-6,6], y=[-6,6,-6,6], z=0 * np.zeros_like([-6,6,-6,6]), color='red', opacity=0.5, showscale=False))
+
         # fig.show()
         plotly.offline.iplot(fig)
 
@@ -109,7 +111,7 @@ def polar_plot(theta,p,normalize=True,transformation= None,s_number=0,ylim=[-40,
             plt.title(title)
         plt.show()
         
-def polar_plot_3(P,R,AC,fi,n_average=7,ylim=[-30,0],title=None,hold=False,linestyle='-',linewidht=3):
+def polar_plot_3(P,R,AC,fi,n_average=7,ylim=[-30,0],title=None,hold=False,linestyle='-',linewidht=3,stackFig = None,normalize=True,color='tab:blue'):
     import numpy as np
     pDiffuser = P
     ppd = {}
@@ -131,16 +133,30 @@ def polar_plot_3(P,R,AC,fi,n_average=7,ylim=[-30,0],title=None,hold=False,linest
         
         ppd[i] = ddp[i]
         a=n_average
-    
-    
-    plt.polar(R.theta, 20*np.log10(ppd[fi]/2e-5)-np.amax(20*np.log10(ppd[fi]/2e-5)),ls=linestyle,lw=linewidht)
+
+    if normalize == True:
+        normalz = np.amax(20*np.log10(ppd[fi]/2e-5))
+    else:
+        normalz= 0
+
+    if stackFig == None:
+        fig = plt.figure()
+        ax = fig.add_subplot(111, projection='polar')
+        ax.set_thetamin(np.amin(np.rad2deg(R.theta)))
+        ax.set_thetamax(np.amax(np.rad2deg(R.theta)))
+
+    else:
+        ax = stackFig
+
+    ax.plot(R.theta,  20*np.log10(ppd[fi]/2e-5)-normalz,ls=linestyle,lw=linewidht,color=color)
     # plt.ylim(ylim)
     if title != None:
         plt.title(title)
     if hold == False:    
         plt.show()
         
-    return ppd[fi][:]
+    return ax,20*np.log10(ppd[fi]/2e-5)-normalz
+
 
 def polar_plot_2(P,R,AC,fi,n_average=7,s_number=0,ylim=[-30,0],title=None,hold=False,scatter=False,linestyle='-',linewidht=3,stackFig = None,normalize=True):
     import numpy as np
@@ -202,7 +218,7 @@ def polar_3d(R,ps):
     
     Rr = receivers.Receiver()
     Rr.spherical_receivers(radius=1.0,ns=200, axis='x',random = False, plot=False)
-    P = 1+np.real((20*np.log10(ps/2e-5) - max(20*np.log10(ps/2e-5)))/max(20*np.log10(ps/2e-5)))
+    P = 1+np.real((20*np.log10(ps/2e-5) - np.amax(20*np.log10(ps/2e-5)))/np.amax(20*np.log10(ps/2e-5)))
 
     cx = Rr.coord[:,0]*0.5*P
     cy = Rr.coord[:,1]*0.5*P

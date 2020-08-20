@@ -49,7 +49,7 @@ class BC():
             self.mu[i] = np.array(admittance[:,i])
 
             
-    def velocity(self,domain_index, admittance):
+    def velocity(self,domain_index, velocity):
         """
         
 
@@ -66,9 +66,8 @@ class BC():
 
         """
         
-        for i in domain_index:
-            self.v[i] = np.array(velocity[:,i])
-            
+        self.v[domain_index] = np.array(velocity)           
+        
     def delany(self,domain_index,RF,d):
     
         """

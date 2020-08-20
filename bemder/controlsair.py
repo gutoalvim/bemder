@@ -109,6 +109,7 @@ class AlgControls():
             self.freq = freq_vec
         self.w = 2.0 * np.pi * self.freq
         self.k0 = self.w / c0
+        self.fcenter = self.freq
 
     def third_octave_fvec(self,fcentermin=100,fcentermax=2000,nperoct=1):
         
@@ -130,6 +131,10 @@ class AlgControls():
             fvec = np.concatenate((fvec,ff),axis=0)
             
         self.freq = fvec
+        
+        if nperoct==1:
+            self.freq = fcenter
+        self.fcenter = fcenter
 ### Function to read the .toml file
 def load_cfg(cfgfile):
     '''
