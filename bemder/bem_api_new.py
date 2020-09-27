@@ -10,6 +10,7 @@ from bemder import receivers
 from bemder import helpers
 from matplotlib import pylab as plt
 import cloudpickle
+import collections
 bempp.api.PLOT_BACKEND = "gmsh"
 
 warnings.filterwarnings('ignore')
@@ -217,7 +218,9 @@ class ExteriorBEM:
         self.grid = grid
         self.f_range = AC.freq
         self.wavetype = S.wavetype
+        # self.r0 = S.coord.reshape(len(S.coord),-1)
         self.r0 = S.coord.T
+        # print(self.r0)
         self.q = S.q
         self.mu = mu
         self.c0 = AP.c0
@@ -231,6 +234,17 @@ class ExteriorBEM:
         self.v = v
         self.IS = IS
         
+        
+        self.mu = collections.OrderedDict(sorted(self.mu.items()))
+        conv = []
+        for i in range(len(self.f_range)):
+            conv.append(
+                np.array(
+                    [self.mu[key][i]
+                     for key in self.mu.keys()],dtype="complex128"))
+        self.mu = conv
+        # print(self.mu[0])
+        # self.mu = np.array([self.mu[i] for i in self.mu.keys()])
         if self.BC == "robin" or "dirichlet": 
             self.space = bempp.api.function_space(self.grid, "DP", 0)
         elif self.BC == "neumann":
@@ -414,10 +428,10 @@ class ExteriorBEM:
             boundU = grid_function for boundary velocity
         
         """
-        if device == "cpu":     
-            helpers.set_cpu()
-        if device == "gpu":
-            helpers.set_cpu()
+        # if device == "cpu":     
+        #     helpers.set_cpu()
+        # if device == "gpu":
+        #     helpers.set_cpu()
         self.bD={}
         if self.mu == None:
             self.mu = {}
@@ -432,81 +446,86 @@ class ExteriorBEM:
         self.space = bempp.api.function_space(self.grid, "DP", 0)
         if individual_sources==True:
             for fi in range(np.size(self.f_range)):
+                mu_f = self.mu[fi]
                 self.boundData = {}  
                 f = self.f_range[fi] #Convert index to frequency
                 k = 2*np.pi*f/self.c0 # Calculate wave number
                 
-                @bempp.api.real_callable
-                def mu_fun_r(x,n,domain_index,result):
-                    with numba.objmode():
-                        result[0]=np.real(self.mu[domain_index][fi])
+                @bempp.api.callable(complex=True,jit=True,parameterized=True)
+                def mu_fun(x,n,domain_index,result,mu_f):
+                        result[0]=np.conj(mu_f[domain_index])
+                        # print(mu_f[domain_index],domain_index)
                     
-                @bempp.api.real_callable
-                def mu_fun_i(x,n,domain_index,result):
-                    with numba.objmode():
-                        result[0]=-np.imag(self.mu[domain_index][fi])
                 
-                mu_op_r = bempp.api.MultiplicationOperator(bempp.api.GridFunction(self.space,fun=mu_fun_r),self.space,self.space,self.space)
-                mu_op_i = bempp.api.MultiplicationOperator(bempp.api.GridFunction(self.space,fun=mu_fun_i),self.space,self.space,self.space)
+                mu_op = bempp.api.MultiplicationOperator(
+                    bempp.api.GridFunction(self.space,fun=mu_fun,function_parameters=mu_f)
+                    ,self.space,self.space,self.space)
+                    
+                # @bempp.api.real_callable
+                # def v_data(x, n, domain_index, result):
+                #     with numba.objmode():
+                #         result[0] = self.v[domain_index][fi]
                 
-                @bempp.api.real_callable
-                def v_data(x, n, domain_index, result):
-                    with numba.objmode():
-                        result[0] = self.v[domain_index][fi]
-            
                 identity = bempp.api.operators.boundary.sparse.identity(
                     self.space, self.space, self.space)
                 dlp = bempp.api.operators.boundary.helmholtz.double_layer(
-                    self.space, self.space, self.space, k)
+                    self.space, self.space, self.space, k,assembler="dense", device_interface="numba")
                 slp = bempp.api.operators.boundary.helmholtz.single_layer(
-                    self.space, self.space, self.space, k)
+                    self.space, self.space, self.space, k,assembler="dense", device_interface="numba")
                 
-                ni = (1j/k)
                 a = 1j*k*self.c0*self.rho0
                 icc=0
                 for icc in range(len(self.r0.T)):
                     # self.ir0 = self.r0[:,i].T
-
-                    if self.wavetype == "plane":
-                        
-                        @bempp.api.complex_callable
-                        def combined_data(r, n, domain_index, result):
-                            with numba.objmode():
-                                result[0] = 0
-                                for i in range(len(self.r0.T)):
-                                    ap = np.linalg.norm(self.r0[:,i]) 
-                                    pos = (r[0]*self.r0[0,i]+r[1]*self.r0[1,i]+r[2]*self.r0[2,i])
-                                    # nm = (((n[0]-1)*self.r0[0,i]/ap)+((n[1]-1)*self.r0[1,i]/ap)+((n[2]-1)*self.r0[2,i]/ap))
-                                    # result[0] += -(ni*1j * k *np.exp(1j * k * pos/np.linalg.norm(self.r0[:,i]))*nm
-                                    #               + a*self.mu[domain_index][fi]*np.exp(1j * k * pos/np.linalg.norm(self.r0[:,i])))
-                                    result[0] += self.q.flat[i]*(np.exp(1j * k * pos/ap))
-    
         
-                    elif self.wavetype == "spherical":
-                    
-                        @bempp.api.complex_callable
-                        def combined_data(r, n, domain_index, result):
-                            with numba.objmode():
-                                    pos  = np.linalg.norm(r-self.r0[:,icc].reshape(1,3),axis=1)
-                                    val  = self.q.flat[icc]*np.exp(1j*k*pos)/(pos)
-                                    result[0] = ((val))#/(pos**2) * (1j*k*pos-1)* np.dot(r-self.r0[:,i],n-1) + 1j*self.mu[domain_index][fi]*k*val))
-                                    # print(val)
-                    
+                    if self.wavetype == "plane":    
+                        @bempp.api.callable(complex=True,jit=True,parameterized=True)
+                        def combined_data(r, n, domain_index, result,parameters):
+                            
+                            r0 = np.real(parameters[:3])
+                            k = parameters[3]
+                            q = parameters[4]
+                                
+                            ap = np.linalg.norm(r0) 
+                            pos = (r[0]*r0[0]+r[1]*r0[1]+r[2]*r0[2])
+                            # nm = (((n[0]-1)*r0[0,i]/ap)+((n[1]-1)*r0[1,i]/ap)+((n[2]-1)*r0[2,i]/ap))
+                            result[0] = q*(np.exp(1j * k * pos/ap))
+                    elif self.wavetype == "spherical":    
+                        @bempp.api.callable(complex=True,jit=True,parameterized=True)
+                        def combined_data(r, n, domain_index, result,parameters):
+                            
+                            r0 = np.real(parameters[:3])
+                            k = parameters[3]
+                            q = parameters[4]
+        
+                            pos  = np.linalg.norm(r-r0)
+                            # print(pos)
+                            result[0]  = q*np.exp(1j*k*pos)/(pos)
+                        
                     else:
-                        raise TypeError("Wavetype must be plane or spherical")      
-        
-                    v_fun = bempp.api.GridFunction(self.space, fun=v_data)
+                        raise TypeError("Wavetype must be plane or spherical") 
                         
-                    monopole_fun = bempp.api.GridFunction(self.space, fun=combined_data)
+                    mnp_fun = bempp.api.GridFunction.from_zeros(self.space)
+                    function_parameters_mnp = np.zeros(5,dtype = 'float64')     
+                   
+                    function_parameters_mnp[:3] = self.r0[:,icc]
+                    function_parameters_mnp[3] = k
+                    function_parameters_mnp[4] = self.q.flat[icc]
+                    
+                    mnp_fun = bempp.api.GridFunction(self.space,fun=combined_data,
+                                                      function_parameters=function_parameters_mnp)    
+                    # v_fun = bempp.api.GridFunction(self.space, fun=v_data)
+                        
+                    monopole_fun = mnp_fun
              
-                    Y = a*(mu_op_r+1j*mu_op_i)# + monopole_fun
+                    Y = a*(mu_op)# + monopole_fun
            
                     lhs = (0.5*identity-dlp) - slp*Y
-                    rhs = monopole_fun - slp*a*v_fun
+                    rhs = monopole_fun #- slp*a*v_fun
                 
                     boundP, info = bempp.api.linalg.gmres(lhs, rhs, tol=1E-5)#, use_strong_form=True)
                 
-                    boundU = -Y*boundP + a*v_fun#- monopole_fun
+                    boundU = -Y*boundP #+ a*v_fun#- monopole_fun
                     
                     self.boundData[icc] = [boundP, boundU]
                     # u[fi] = boundU
@@ -515,7 +534,7 @@ class ExteriorBEM:
                     self.IS = 1
                     
                     print('{} Hz - Source {}/{}'.format(self.f_range[fi],icc+1,len(self.r0.T)))
-
+        
                     
                 print('{} / {}'.format(fi+1,np.size(self.f_range)))
                     
@@ -523,86 +542,88 @@ class ExteriorBEM:
                 
             return self.bD
         
-        if individual_sources==False:
+        elif individual_sources==False:
             self.boundData = {}  
            
             for fi in range(np.size(self.f_range)):
     
-    
+                mu_f = self.mu[fi]
+                # print(mu_f[0])
                 f = self.f_range[fi] #Convert index to frequency
                 k = 2*np.pi*f/self.c0 # Calculate wave number
                 
-                @bempp.api.real_callable
-                def mu_fun_r(x,n,domain_index,result):
-                    with numba.objmode():
-                        result[0]=np.real(self.mu[domain_index][fi])
+                @bempp.api.callable(complex=True,jit=True,parameterized=True)
+                def mu_fun(x,n,domain_index,result,mu_f):
+                        result[0]=np.conj(mu_f[domain_index])
+                        # print(mu_f[domain_index],domain_index)
                     
-                @bempp.api.real_callable
-                def mu_fun_i(x,n,domain_index,result):
-                    with numba.objmode():
-                        result[0]=-np.imag(self.mu[domain_index][fi])
                 
-                mu_op_r = bempp.api.MultiplicationOperator(bempp.api.GridFunction(self.space,fun=mu_fun_r),self.space,self.space,self.space)
-                mu_op_i = bempp.api.MultiplicationOperator(bempp.api.GridFunction(self.space,fun=mu_fun_i),self.space,self.space,self.space)
+                mu_op = bempp.api.MultiplicationOperator(
+                    bempp.api.GridFunction(self.space,fun=mu_fun,function_parameters=mu_f)
+                    ,self.space,self.space,self.space)
                 
-                @bempp.api.real_callable
-                def v_data(x, n, domain_index, result):
-                    with numba.objmode():
-                        result[0] = self.v[domain_index][fi]
+                
+                # @bempp.api.callable(complex=True,jit=False)
+                # def v_data(x, n, domain_index, result):
+                #     with numba.objmode():
+                #         result[0] = self.v[domain_index][fi]
             
                 identity = bempp.api.operators.boundary.sparse.identity(
                     self.space, self.space, self.space)
                 dlp = bempp.api.operators.boundary.helmholtz.double_layer(
-                    self.space, self.space, self.space, k)
+                    self.space, self.space, self.space, k, assembler="dense", device_interface="numba")
                 slp = bempp.api.operators.boundary.helmholtz.single_layer(
-                    self.space, self.space, self.space, k)
+                    self.space, self.space, self.space, k,assembler="dense", device_interface="numba")
                 
-                ni = (1j/k)
+                # ni = (1j/k)
                 a = 1j*k*self.c0*self.rho0
-             
-                if self.wavetype == "plane":
-                    
-                    @bempp.api.complex_callable
-                    def combined_data(r, n, domain_index, result):
-                        with numba.objmode():
-                            result[0] = 0
-                            for i in range(len(self.r0.T)):
-                                ap = np.linalg.norm(self.r0[:,i]) 
-                                pos = (r[0]*self.r0[0,i]+r[1]*self.r0[1,i]+r[2]*self.r0[2,i])
-                                nm = (((n[0]-1)*self.r0[0,i]/ap)+((n[1]-1)*self.r0[1,i]/ap)+((n[2]-1)*self.r0[2,i]/ap))
-                                # result[0] += -(ni*1j * k *np.exp(1j * k * pos/np.linalg.norm(self.r0[:,i]))*nm
-                                #               + a*self.mu[domain_index][fi]*np.exp(1j * k * pos/np.linalg.norm(self.r0[:,i])))
-                                result[0] += self.q.flat[i]*(np.exp(1j * k * pos/ap))
+
+                
+
+                if self.wavetype == "plane":    
+                    @bempp.api.callable(complex=True,jit=True,parameterized=True)
+                    def combined_data(r, n, domain_index, result,parameters):
+                        
+                        r0 = np.real(parameters[:3])
+                        k = parameters[3]
+                        q = parameters[4]
+                            
+                        ap = np.linalg.norm(r0) 
+                        pos = (r[0]*r0[0]+r[1]*r0[1]+r[2]*r0[2])
+                        # nm = (((n[0]-1)*r0[0,i]/ap)+((n[1]-1)*r0[1,i]/ap)+((n[2]-1)*r0[2,i]/ap))
+                        result[0] = q*(np.exp(1j * k * pos/ap))
+                elif self.wavetype == "spherical":    
+                    @bempp.api.callable(complex=True,jit=True,parameterized=True)
+                    def combined_data(r, n, domain_index, result,parameters):
+                        
+                        r0 = np.real(parameters[:3])
+                        k = parameters[3]
+                        q = parameters[4]
     
-                elif self.wavetype == "spherical":
-                    
-                    @bempp.api.complex_callable
-                    def combined_data(r, n, domain_index, result):
-                        with numba.objmode():
-                            result[0]=0
-                            for i in range(len(self.r0.T)): 
-        
-                                pos  = np.linalg.norm(r-self.r0[:,i].reshape(1,3),axis=1)
-                                print(pos)
-                                val  = self.q.flat[i]*np.exp(1j*k*pos)/(pos)
-                                result[0] += ((val))#/(pos**2) * (1j*k*pos-1)* np.dot(r-self.r0[:,i],n-1) + 1j*self.mu[domain_index][fi]*k*val))
-                                # print(val)
-                    
-                else:
-                    raise TypeError("Wavetype must be plane or spherical")      
+                        pos  = np.linalg.norm(r-r0)
+                        # print(pos)
+                        result[0]  = q*np.exp(1j*k*pos)/(pos)
+           
     
-                v_fun = bempp.api.GridFunction(self.space, fun=v_data)
+                # v_fun = bempp.api.GridFunction(self.space, fun=v_data)
+                mnp_fun = bempp.api.GridFunction.from_zeros(self.space)
+                function_parameters_mnp = np.zeros(5,dtype = 'complex128')     
+                for i in range(len(self.r0.T)):
+                    function_parameters_mnp[:3] = self.r0[:,i]
+                    function_parameters_mnp[3] = k
+                    function_parameters_mnp[4] = self.q.flat[i]
                     
-                monopole_fun = bempp.api.GridFunction(self.space, fun=combined_data)
-         
-                Y = a*(mu_op_r+1j*mu_op_i)# + monopole_fun
+                    mnp_fun += bempp.api.GridFunction(self.space,fun=combined_data,
+                                                      function_parameters=function_parameters_mnp)
+                monopole_fun = mnp_fun
+                Y = a*(mu_op)# + monopole_fun
        
                 lhs = (0.5*identity-dlp) - slp*Y
-                rhs = monopole_fun - slp*a*v_fun
+                rhs = monopole_fun #- slp*a*v_fun
             
                 boundP, info = bempp.api.linalg.gmres(lhs, rhs, tol=1E-5)#, use_strong_form=True)
             
-                boundU = -Y*boundP + a*v_fun#- monopole_fun
+                boundU = -Y*boundP #+ a*v_fun#- monopole_fun
                 
                 self.boundData[fi] = [boundP, boundU]
                 # u[fi] = boundU
@@ -741,39 +762,36 @@ class ExteriorBEM:
                 k = 2*np.pi*f/self.c0 # Calculate wave number
                 
                 
-                ni = (1j/k)
                 a = 1j*k*self.c0*self.rho0
                 
                 if self.wavetype == "plane":
                     
-                    @bempp.api.complex_callable
-                    def combined_data(r, n, domain_index, result):
-                        with numba.objmode():
-                            result[0] = 0
-                            for i in range(len(self.r0.T)):
-                                ap = np.linalg.norm(self.r0[:,i]) 
-                                pos = (r[0]*self.r0[0,i]+r[1]*self.r0[1,i]+r[2]*self.r0[2,i])
-                                nm = (((n[0]-1)*self.r0[0,i]/ap)+((n[1]-1)*self.r0[1,i]/ap)+((n[2]-1)*self.r0[2,i]/ap))
-                                # result[0] += -(ni*1j * k *np.exp(1j * k * pos/np.linalg.norm(self.r0[:,i]))*nm
-                                #               + a*self.mu[domain_index][fi]*np.exp(1j * k * pos/np.linalg.norm(self.r0[:,i])))
-                                result[0] += self.q.flat[i]*(np.exp(1j * k * pos/ap))
+                    @bempp.api.callable(complex=True,jit=True,parametrized=True)
+                    def combined_data(r, n, domain_index, result,parameters):
+                        result[0] = 0
+                        for i in range(len(self.r0.T)):
+                            ap = np.linalg.norm(self.r0[:,i]) 
+                            pos = (r[0]*self.r0[0,i]+r[1]*self.r0[1,i]+r[2]*self.r0[2,i])
+                            nm = (((n[0]-1)*self.r0[0,i]/ap)+((n[1]-1)*self.r0[1,i]/ap)+((n[2]-1)*self.r0[2,i]/ap))
+                            # result[0] += -(ni*1j * k *np.exp(1j * k * pos/np.linalg.norm(self.r0[:,i]))*nm
+                            #               + a*self.mu[domain_index][fi]*np.exp(1j * k * pos/np.linalg.norm(self.r0[:,i])))
+                            result[0] += self.q.flat[i]*(np.exp(1j * k * pos/ap))
     
                 elif self.wavetype == "spherical":
                     
-                    @bempp.api.complex_callable
-                    def combined_data(r, n, domain_index, result):
-                        with numba.objmode():
-                            result[0]=0
-                            
-                            for i in range(len(self.r0.T)): 
-                                if domain_index==213:
-                                    result[0]=0
-                                else:
-                                    pos  = np.linalg.norm(r-self.r0[:,i].reshape(1,3),axis=1)
-                                    val  = self.q.flat[i]*np.exp(1j*k*pos)/(pos)
-                                    result[0] += (2*(val))#/(pos**2) * (1j*k*pos-1)* np.dot(r-self.r0[:,i],n-1) + 1j*self.mu[domain_index][fi]*k*val))
-                                # print(val)
-                    
+                    @bempp.api.callable(complex=True,jit=True,parametrized=True)
+                    def combined_data(r, n, domain_index, result,parameters):
+                        result[0]=0
+                        
+                        for i in range(len(self.r0.T)): 
+                            if domain_index==213:
+                                result[0]=0
+                            else:
+                                pos  = np.linalg.norm(r-self.r0[:,i].reshape(1,3),axis=1)
+                                val  = self.q.flat[i]*np.exp(1j*k*pos)/(pos)
+                                result[0] += (2*(val))#/(pos**2) * (1j*k*pos-1)* np.dot(r-self.r0[:,i],n-1) + 1j*self.mu[domain_index][fi]*k*val))
+                            # print(val)
+                
                 else:
                     raise TypeError("Wavetype must be plane or spherical")      
     
@@ -848,9 +866,9 @@ class ExteriorBEM:
                 
 
                 dlp_pot = bempp.api.operators.potential.helmholtz.double_layer(
-                    self.space, pts.T, k)
+                    self.space, pts.T, k,assembler="dense", device_interface="numba")
                 slp_pot = bempp.api.operators.potential.helmholtz.single_layer(
-                    self.space, pts.T, k)
+                    self.space, pts.T, k,assembler="dense", device_interface="numba")
                 
                 for i in range(len(self.r0.T)):
                     # self.ir0 = self.r0[:,i]
@@ -890,9 +908,9 @@ class ExteriorBEM:
                 #     pScat =  -slp_pot.evaluate(boundD[fi][0])
                     
                 dlp_pot = bempp.api.operators.potential.helmholtz.double_layer(
-                    self.space, pts.T, k)
+                    self.space, pts.T, k,assembler="dense", device_interface="numba")
                 slp_pot = bempp.api.operators.potential.helmholtz.single_layer(
-                    self.space, pts.T, k)
+                    self.space, pts.T, k,assembler="dense", device_interface="numba")
                 pScat =  dlp_pot.evaluate(boundD[fi][0])-slp_pot.evaluate(boundD[fi][1])
                     
                 if self.wavetype == "plane":
@@ -1433,7 +1451,7 @@ class RoomBEM:
             k = 2*np.pi*f/self.c0
                 
             slp_pot = bempp.api.operators.potential.helmholtz.single_layer(
-                self.space, pts.T, k)
+                self.space, pts.T, k,assembler='dense')
             dlp_pot = bempp.api.operators.potential.helmholtz.double_layer(
                 self.space, pts.T, k)
             pScat =  (slp_pot * boundD[fi][1] - dlp_pot * boundD[fi][0])

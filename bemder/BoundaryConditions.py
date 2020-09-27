@@ -57,8 +57,8 @@ class BC():
 
         """
         
-        if type(admittance) == int:
-            self.mu[domain_index] = np.ones_like(self.AC.freq*admittance)
+        if type(admittance) == int or float:
+            self.mu[domain_index] = np.ones_like(self.AC.freq)*admittance
         
         else:
             
