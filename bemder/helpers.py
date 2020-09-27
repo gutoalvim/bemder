@@ -3,7 +3,7 @@ import cloudpickle
 import pickle
 import os
 import time
-import bemder.bem_api_new as bem
+# import bemder.bem_api_new as bem
 import matplotlib.pyplot as plt
 import numpy as np
 
@@ -128,27 +128,27 @@ def truncate(n, decimals=0):
     return int(n * multiplier) / multiplier
 
 
-def pack_bem(filename='Configuration', save=True, folder=None, timestamp=True, ext='.pickle'):
-    if save is True:
-        # timestr = time.strftime("%Y%m%d-%H%M_")
-        # filename = filename+'_'+str(self.config_number)
-        outfile = open(filename + ext, 'wb')
+# def pack_bem(filename='Configuration', save=True, folder=None, timestamp=True, ext='.pickle'):
+#     if save is True:
+#         # timestr = time.strftime("%Y%m%d-%H%M_")
+#         # filename = filename+'_'+str(self.config_number)
+#         outfile = open(filename + ext, 'wb')
 
-        packedData = {}
+#         packedData = {}
 
-        try:
-            simulation_data, bem_data = bem.pack()
-            packedData['bem'] = [simulation_data, bem_data]
-        except AttributeError:
-            if save:
-                print('BEM data not found.')
+#         try:
+#             simulation_data, bem_data = bem.pack()
+#             packedData['bem'] = [simulation_data, bem_data]
+#         except AttributeError:
+#             if save:
+#                 print('BEM data not found.')
 
-    if save is True:
-        cloudpickle.dump(packedData, outfile)
-        outfile.close()
-        print('Saved successfully.')
-    if save is False:
-        return packedData
+#     if save is True:
+#         cloudpickle.dump(packedData, outfile)
+#         outfile.close()
+#         print('Saved successfully.')
+#     if save is False:
+#         return packedData
 
 def diffusion_coef(frequency,pDiffuser,pRef, plot=False):
 
