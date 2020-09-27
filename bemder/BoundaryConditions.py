@@ -27,7 +27,19 @@ class BC():
         for i in domain_index:
             self.mu[i] = np.array(1/impedance[:,i])
 
-            
+    def rigid(self,domain_index):
+        """
+        
+
+        Parameters
+        ----------
+        domain_index : int
+            Physical group index assigned in gmsh for rigid surfaces
+
+
+        """
+        self.mu[domain_index] = np.zeros_like(self.AC.freq)
+                
     def admittance(self,domain_index, admittance):
         """
         
@@ -45,8 +57,13 @@ class BC():
 
         """
         
-        for i in domain_index:
-            self.mu[i] = np.array(admittance[:,i])
+        if type(admittance) == int:
+            self.mu[domain_index] = np.ones_like(self.AC.freq*admittance)
+        
+        else:
+            
+            for i in domain_index:
+                self.mu[i] = np.array(admittance[:,i])
 
             
     def velocity(self,domain_index, velocity):

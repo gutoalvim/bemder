@@ -583,6 +583,7 @@ class ExteriorBEM:
                             for i in range(len(self.r0.T)): 
         
                                 pos  = np.linalg.norm(r-self.r0[:,i].reshape(1,3),axis=1)
+                                print(pos)
                                 val  = self.q.flat[i]*np.exp(1j*k*pos)/(pos)
                                 result[0] += ((val))#/(pos**2) * (1j*k*pos-1)* np.dot(r-self.r0[:,i],n-1) + 1j*self.mu[domain_index][fi]*k*val))
                                 # print(val)
@@ -895,7 +896,7 @@ class ExteriorBEM:
                 pScat =  dlp_pot.evaluate(boundD[fi][0])-slp_pot.evaluate(boundD[fi][1])
                     
                 if self.wavetype == "plane":
-                    pInc = self.planewave(fi,pts,ir)
+                    pInc = self.planewave(fi,pts,ir=0)
                     
                 elif self.wavetype == "spherical":
                     pInc = self.monopole(fi,pts,ir=0)
