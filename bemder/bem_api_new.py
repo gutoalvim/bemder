@@ -214,7 +214,7 @@ class ExteriorBEM:
     R_init = receivers.Receiver(coord=[1.5,0,0])
     grid_init = bempp.api.shapes.regular_sphere(2)
     
-    def __init__(self,grid=grid_init,AC=AC_init,AP=AP_init,S=S_init,R=R_init,mu=None,v=None,IS=0):
+    def __init__(self,grid=grid_init,AC=AC_init,AP=AP_init,S=S_init,R=R_init,mu=None,v=None,assembler = 'numba'):
         self.grid = grid
         self.f_range = AC.freq
         self.wavetype = S.wavetype
@@ -232,7 +232,8 @@ class ExteriorBEM:
         self.BC = 'neumann'
         self.EoI = 0
         self.v = v
-        self.IS = IS
+        self.IS = 0
+        self.assembler = assembler
         
         
         self.mu = collections.OrderedDict(sorted(self.mu.items()))
@@ -469,9 +470,9 @@ class ExteriorBEM:
                 identity = bempp.api.operators.boundary.sparse.identity(
                     self.space, self.space, self.space)
                 dlp = bempp.api.operators.boundary.helmholtz.double_layer(
-                    self.space, self.space, self.space, k,assembler="dense", device_interface="numba")
+                    self.space, self.space, self.space, k,assembler="dense", device_interface=self.assembler)
                 slp = bempp.api.operators.boundary.helmholtz.single_layer(
-                    self.space, self.space, self.space, k,assembler="dense", device_interface="numba")
+                    self.space, self.space, self.space, k,assembler="dense", device_interface=self.assembler)
                 
                 a = 1j*k*self.c0*self.rho0
                 icc=0
@@ -571,9 +572,9 @@ class ExteriorBEM:
                 identity = bempp.api.operators.boundary.sparse.identity(
                     self.space, self.space, self.space)
                 dlp = bempp.api.operators.boundary.helmholtz.double_layer(
-                    self.space, self.space, self.space, k, assembler="dense", device_interface="numba")
+                    self.space, self.space, self.space, k, assembler="dense", device_interface=self.assembler)
                 slp = bempp.api.operators.boundary.helmholtz.single_layer(
-                    self.space, self.space, self.space, k,assembler="dense", device_interface="numba")
+                    self.space, self.space, self.space, k,assembler="dense", device_interface=self.assembler)
                 
                 # ni = (1j/k)
                 a = 1j*k*self.c0*self.rho0
@@ -866,9 +867,9 @@ class ExteriorBEM:
                 
 
                 dlp_pot = bempp.api.operators.potential.helmholtz.double_layer(
-                    self.space, pts.T, k,assembler="dense", device_interface="numba")
+                    self.space, pts.T, k,assembler="dense", device_interface=self.assembler)
                 slp_pot = bempp.api.operators.potential.helmholtz.single_layer(
-                    self.space, pts.T, k,assembler="dense", device_interface="numba")
+                    self.space, pts.T, k,assembler="dense", device_interface=self.assembler)
                 
                 for i in range(len(self.r0.T)):
                     # self.ir0 = self.r0[:,i]
@@ -908,9 +909,9 @@ class ExteriorBEM:
                 #     pScat =  -slp_pot.evaluate(boundD[fi][0])
                     
                 dlp_pot = bempp.api.operators.potential.helmholtz.double_layer(
-                    self.space, pts.T, k,assembler="dense", device_interface="numba")
+                    self.space, pts.T, k,assembler="dense", device_interface=self.assembler)
                 slp_pot = bempp.api.operators.potential.helmholtz.single_layer(
-                    self.space, pts.T, k,assembler="dense", device_interface="numba")
+                    self.space, pts.T, k,assembler="dense", device_interface=self.assembler)
                 pScat =  dlp_pot.evaluate(boundD[fi][0])-slp_pot.evaluate(boundD[fi][1])
                     
                 if self.wavetype == "plane":
