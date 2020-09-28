@@ -44,6 +44,6 @@ def import_grid(path_to_msh,show_mesh=False):
     if show_mesh == True:
         gmsh.fltk.run()
     path_name = os.path.dirname(path_to_msh)
-    gmsh.write(path_name+'current_mesh.msh')
+    gmsh.write(path_name+'/current_mesh.msh')
     gmsh.finalize()
-    return bempp.api.import_grid(path_name+'current_mesh.msh')
+    return bempp.api.import_grid(path_name+'/current_mesh.msh')
