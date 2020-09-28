@@ -5,7 +5,10 @@ Created on Fri Sep  4 11:51:47 2020
 @author: gutoa
 """
 # import numpy as np
-import gmsh
+try:  
+    import gmsh
+except :
+    import gmsh_api.gmsh as gmsh
 import bempp.api
 import sys
 def import_grid(path_to_msh,show_mesh=False):
