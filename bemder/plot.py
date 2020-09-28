@@ -27,8 +27,20 @@ def plot_problem(obj,S=None,R=None,grid_pts=None, pT=None, mode="element", trans
     if transformation == "dB":
         transformation = p2dB
 
-    # plotly.offline.init_notebook_mode()
-
+    def configure_plotly_browser_state():
+      import IPython
+      display(IPython.core.display.HTML('''
+            <script src="/static/components/requirejs/require.js"></script>
+            <script>
+              requirejs.config({
+                paths: {
+                  base: '/static/base',
+                  plotly: 'https://cdn.plot.ly/plotly-1.5.1.min.js?noext',
+                },
+              });
+            </script>
+            '''))
+    plotly.offline.init_notebook_mode()
     if isinstance(obj, Grid):
         vertices = obj.vertices
         elements = obj.elements
