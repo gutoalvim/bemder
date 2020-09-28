@@ -12,7 +12,7 @@ except :
 import bempp.api
 import sys
 import os
-def import_grid(path_to_msh,show_mesh=False):
+def import_grid(path_to_msh,show_mesh=False,gmsh_filepath=None):
     """
     This function imports a .msh file and orders the domain_index from 0 to len(domain_index).
 
@@ -46,11 +46,14 @@ def import_grid(path_to_msh,show_mesh=False):
     gmsh.write(path_name+'/current_mesh.msh')        
     if show_mesh == True:
         try:
-            gmsh.fltk.run()
-        except:
             bempp.api.PLOT_BACKEND = "jupyter"
             bempp.api.import_grid(path_name+'/current_mesh.msh').plot()
-            
+        except:
+            bempp.api.GMSH_PATH = gmsh_filepath
+            bempp.api.PLOT_BACKEND = "gmsh"
+            bempp.api.import_grid(path_name+'/current_mesh.msh').plot()
+
+
 
     gmsh.finalize()
     return bempp.api.import_grid(path_name+'/current_mesh.msh')
