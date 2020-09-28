@@ -11,6 +11,7 @@ except :
     import gmsh_api.gmsh as gmsh
 import bempp.api
 import sys
+import os
 def import_grid(path_to_msh,show_mesh=False):
     """
     This function imports a .msh file and orders the domain_index from 0 to len(domain_index).
@@ -42,6 +43,7 @@ def import_grid(path_to_msh,show_mesh=False):
         
     if show_mesh == True:
         gmsh.fltk.run()
-    gmsh.write('C:\\Users\\gutoa\\Documents\\UFSM\\TCC\\Bemder Projects\\Double_Mesh_Symmetry\\Mshs\\current_mesh.msh')
+    path_name = os.path.dirname(path_to_msh)
+    gmsh.write(path_name+'current_mesh.msh')
     gmsh.finalize()
-    return bempp.api.import_grid('C:\\Users\\gutoa\\Documents\\UFSM\\TCC\\Bemder Projects\\Double_Mesh_Symmetry\\Mshs\\current_mesh.msh')
+    return bempp.api.import_grid(path_name+'current_mesh.msh')
