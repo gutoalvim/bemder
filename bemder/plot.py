@@ -63,7 +63,7 @@ def plot_problem(obj,S=None,R=None,grid_pts=None, pT=None, mode="element", trans
 
         fig.add_trace(go.Mesh3d(x=[-6,6,-6,6], y=[-6,6,-6,6], z=0 * np.zeros_like([-6,6,-6,6]), color='red', opacity=0.5, showscale=False))
 
-        # fig.show()
+        configure_plotly_browser_state() 
         plotly.offline.iplot(fig)
 
     elif isinstance(obj, GridFunction):
@@ -101,7 +101,8 @@ def plot_problem(obj,S=None,R=None,grid_pts=None, pT=None, mode="element", trans
             if S.wavetype == "spherical":
                 fig.add_trace(go.Scatter3d(x = S.coord[:,0], y = S.coord[:,1], z = S.coord[:,2],name="Sources"))
         
-            
+        configure_plotly_browser_state()    
+           
         plotly.iplot(fig)
         
 def polar_plot(theta,p,normalize=True,transformation= None,s_number=0,ylim=[-40,0],title = None,n_average=0):
