@@ -41,9 +41,16 @@ def import_grid(path_to_msh,show_mesh=False):
     for i in range(len(phgr)):
         gmsh.model.addPhysicalGroup(2, phgr_ent[i],phgr_ordered[i])
         
-    if show_mesh == True:
-        gmsh.fltk.run()
+        
     path_name = os.path.dirname(path_to_msh)
-    gmsh.write(path_name+'/current_mesh.msh')
+    gmsh.write(path_name+'/current_mesh.msh')        
+    if show_mesh == True:
+        try:
+            gmsh.fltk.run()
+        except:
+            bempp.api.PLOT_BACKEND = "jupyter"
+            bempp.api.import_grid(path_name+'/current_mesh.msh').plot()
+            
+
     gmsh.finalize()
     return bempp.api.import_grid(path_name+'/current_mesh.msh')
