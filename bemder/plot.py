@@ -90,7 +90,7 @@ def plot_problem(obj,S=None,R=None,grid_pts=None, pT=None, mode="element", trans
                 fig.add_trace(go.Scatter3d(x = S.coord[:,0], y = S.coord[:,1], z = S.coord[:,2],name="Sources"))
         
             
-        plotly.offline.iplot(fig)
+        plotly.iplot(fig)
         
 def polar_plot(theta,p,normalize=True,transformation= None,s_number=0,ylim=[-40,0],title = None,n_average=0):
     import numpy as np

@@ -46,7 +46,7 @@ def import_grid(path_to_msh,show_mesh=False,gmsh_filepath=None):
     gmsh.write(path_name+'/current_mesh.msh')        
     if show_mesh == True:
         try:
-            bempp.api.PLOT_BACKEND = "jupyter"
+            bempp.api.PLOT_BACKEND = "jupyter_notebook"
             bempp.api.import_grid(path_name+'/current_mesh.msh').plot()
         except:
             bempp.api.GMSH_PATH = gmsh_filepath
