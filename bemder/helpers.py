@@ -76,7 +76,7 @@ def set_gpu(printDevice=True):
     """
     import pyopencl as _cl
     import bempp.api
-    from bempp.core.cl_helpers import Context, set_default_device
+    from bemder.cl_helpers import Context, set_default_device
     platforms = _cl.get_platforms()
     for platform_index, platform in enumerate(platforms):
         devices = platform.get_devices()
@@ -94,7 +94,7 @@ def set_cpu(printDevice=True):
     """
     import pyopencl as _cl
     import bempp
-    from bempp.core.cl_helpers import Context, set_default_device
+    from bemder.cl_helpers import Context, set_default_device
     platforms = _cl.get_platforms()
     for platform_index, platform in enumerate(platforms):
         devices = platform.get_devices()

@@ -1058,7 +1058,7 @@ class ExteriorBEM:
         return  np.array([vx[i] for i in vx.keys()]).reshape(len(vx),len(R.coord)),np.array([vy[i] for i in vy.keys()]).reshape(len(vy),len(R.coord)),np.array([vz[i] for i in vz.keys()]).reshape(len(vz),len(R.coord))    
 
 
-    def combined_grid_evaluate(self,boundData,fi=0,plane="z",d=0,grid_size=[4,4],n_grid_pts=600,device='cpu'):
+    def grid_evaluate(self,boundData,fi=0,plane="z",d=0,grid_size=[4,4],n_grid_pts=600,device='cpu'):
         
         """
         Evaluates and plots the SPL in symmetrical grid for a mesh centered at [0,0,0].
@@ -1082,10 +1082,11 @@ class ExteriorBEM:
         pT = {}
         pTI = {}
         pTS = {}
-        if device == "cpu":     
-            helpers.set_cpu()
-        if device == "gpu":
-            helpers.set_cpu()
+        if self.assembler == 'opencl':
+            if device == "cpu":     
+                helpers.set_cpu()
+            if device == "gpu":
+                helpers.set_cpu()
         k = 2*np.pi*self.f_range[fi]/self.c0
         if plane == 'z':
             
@@ -1105,9 +1106,9 @@ class ExteriorBEM:
             
 
         dlp_pot = bempp.api.operators.potential.helmholtz.double_layer(
-            self.space, grid_pts, k)
+            self.space, grid_pts, k, assembler="dense", device_interface=self.assembler)
         slp_pot = bempp.api.operators.potential.helmholtz.single_layer(
-            self.space, grid_pts, k)
+            self.space, grid_pts, k, assembler="dense", device_interface=self.assembler)
         pScat =  dlp_pot.evaluate(boundData[fi][0])-slp_pot.evaluate(boundData[fi][1])
             
         
@@ -1184,9 +1185,9 @@ class ExteriorBEM:
             grid_pts = np.vstack((plot_grid[0].ravel(),d+np.zeros(plot_grid[0].size),plot_grid[1].ravel()))
             
             slp_pot = bempp.api.operators.potential.helmholtz.single_layer(
-                self.space, grid_pts, k)            
+                self.space, grid_pts, k, assembler="dense", device_interface=self.assembler)            
             dlp_pot = bempp.api.operators.potential.helmholtz.double_layer(
-                self.space, grid_pts, k)
+                self.space, grid_pts, k, assembler="dense", device_interface=self.assembler)
             pScat =  dlp_pot.evaluate(boundP[fi]) - slp_pot.evaluate(boundU[fi])
             
             pInc = self.planewave(fi,grid_pts.T)
