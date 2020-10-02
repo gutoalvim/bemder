@@ -50,6 +50,7 @@ def plot_problem(obj,S=None,R=None,grid_pts=None, pT=None, mode="element", trans
             z=vertices[2, :],
             simplices=elements.T,
             color_func=elements.shape[1] * ["rgb(255, 222, 173)"],
+            opacity=0.75
         )
 
         fig['layout']['scene'].update(go.layout.Scene(aspectmode='data'))
@@ -90,6 +91,7 @@ def plot_problem(obj,S=None,R=None,grid_pts=None, pT=None, mode="element", trans
             colormap = "Jet",
             simplices=elements.T,
             show_colorbar = True,
+            opacity=0.75
  
         )
      
