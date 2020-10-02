@@ -64,7 +64,7 @@ def plot_problem(obj,S=None,R=None,grid_pts=None, pT=None, mode="element", trans
         fig.add_trace(go.Mesh3d(x=[-6,6,-6,6], y=[-6,6,-6,6], z=0 * np.zeros_like([-6,6,-6,6]), color='red', opacity=0.5, showscale=False))
 
         configure_plotly_browser_state() 
-        plotly.iplot(fig)
+        plotly.offline.iplot(fig)
 
     elif isinstance(obj, GridFunction):
 
