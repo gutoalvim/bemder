@@ -64,6 +64,30 @@ class BC():
             
             for i in domain_index:
                 self.mu[i] = np.array(admittance[:,i])
+    def normalized_admittance(self,domain_index, normalized_admittance):
+        """
+        
+
+        Parameters
+        ----------
+        domain_index : TYPE
+            Physical group indexes assigned in gmsh for each surface.
+        impedance : TYPE
+            frequency x domain_index matrix with surface impedance values.
+
+        Returns
+        -------
+        None.
+
+        """
+        
+        if type(normalized_admittance) == int or float:
+            self.mu[domain_index] = np.ones_like(self.AC.freq)*normalized_admittance/(self.AP.c0*self.AP.rho0)
+        
+        else:
+            
+            for i in domain_index:
+                self.mu[i] = np.array(normalized_admittance[:,i]/(self.AP.c0*self.AP.rho0))
 
             
     def velocity(self,domain_index, velocity):
@@ -85,7 +109,7 @@ class BC():
         
         self.v[domain_index] = np.array(velocity)           
         
-    def delany(self,domain_index,RF,d):
+    def delany(self,domain_index,RF,d,model='delany-bazley'):
     
         """
         This function implements th e Delany-Bazley-Miki model for a single porous layers.
@@ -101,16 +125,24 @@ class BC():
         f_range = self.AC.freq
         w = 2*np.pi*f_range
     
-    
-        C1=0.0978
-        C2=0.7
-        C3=0.189
-        C4=0.595
-        C5=0.0571
-        C6=0.754
-        C7=0.087
-        C8=0.723
-    
+        if model == 'delany-bazley':
+            C1=0.0978
+            C2=0.7
+            C3=0.189
+            C4=0.595
+            C5=0.0571
+            C6=0.754
+            C7=0.087
+            C8=0.723
+        elif model == 'miki':
+            C1=0.122
+            C2=0.618
+            C3=0.18
+            C4=0.618
+            C5=0.079
+            C6=0.632
+            C7=0.12
+            C8=0.632
         X = f_range*self.AP.rho0/RF
         cc = self.AP.c0/(1+C1*np.power(X,-C2) -1j*C3*np.power(X,-C4))
         rhoc = (self.AP.rho0*self.AP.c0/cc)*(1+C5*np.power(X,-C6)-1j*C7*np.power(X,-C8))
