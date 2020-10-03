@@ -11,7 +11,7 @@ from matplotlib import style
 from bemder import receivers
 style.use("seaborn-talk")
 
-def plot_problem(obj,S=None,R=None,grid_pts=None, pT=None, mode="element", transformation=None):
+def plot_problem(obj,S=None,R=None,grid_pts=None, pT=None, opacity = 0.75, mode="element", transformation=None):
     import plotly.figure_factory as ff
     import plotly.graph_objs as go
     from bempp.api import GridFunction
@@ -40,6 +40,7 @@ def plot_problem(obj,S=None,R=None,grid_pts=None, pT=None, mode="element", trans
               });
             </script>
             '''))
+            
     plotly.offline.init_notebook_mode()
     if isinstance(obj, Grid):
         vertices = obj.vertices
@@ -51,7 +52,7 @@ def plot_problem(obj,S=None,R=None,grid_pts=None, pT=None, mode="element", trans
             simplices=elements.T,
             color_func=elements.shape[1] * ["rgb(255, 222, 173)"],
         )
-
+        fig['data'][0].update(opacity=opacity)
         fig['layout']['scene'].update(go.layout.Scene(aspectmode='data'))
         
         if R != None:
@@ -92,7 +93,8 @@ def plot_problem(obj,S=None,R=None,grid_pts=None, pT=None, mode="element", trans
             show_colorbar = True,
  
         )
-     
+        fig['data'][0].update(opacity=opacity)
+        
         fig['layout']['scene'].update(go.layout.Scene(aspectmode='data'))
         if R != None:
             fig.add_trace(go.Scatter3d(x = R.coord[:,0], y = R.coord[:,1], z = R.coord[:,2],name="Receivers"))
