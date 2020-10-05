@@ -143,11 +143,23 @@ class BC():
             C6=0.632
             C7=0.12
             C8=0.632
+        elif model == 'PET':
+            C1=0.078
+            C2=0.623
+            C3=0.074
+            C4=0.660
+            C5=0.159
+            C6=0.571
+            C7=0.121
+            C8=0.530
+
         X = f_range*self.AP.rho0/RF
         cc = self.AP.c0/(1+C1*np.power(X,-C2) -1j*C3*np.power(X,-C4))
         rhoc = (self.AP.rho0*self.AP.c0/cc)*(1+C5*np.power(X,-C6)-1j*C7*np.power(X,-C8))
     
         Zs = -1j*rhoc*cc/np.tan((w/cc)*d) 
-    
+        
         self.mu[domain_index] = np.array(1/Zs)
+        
+
             

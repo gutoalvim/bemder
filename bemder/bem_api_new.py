@@ -1717,22 +1717,23 @@ class InteriorBEM:
             if device == "gpu":
                 helpers.set_cpu()
         k = 2*np.pi*self.f_range[fi]/self.c0
+        bBox = self.grid.bounding_box
         if plane == 'z':
             
             n_grid_points = n_grid_pts
-            plot_grid = np.mgrid[-grid_size[0]/2:grid_size[0]/2:n_grid_points*1j, -grid_size[1]/2:grid_size[1]/2:n_grid_points*1j]
-            grid_pts = np.vstack((plot_grid[0].ravel()+100,plot_grid[1].ravel(),d+np.zeros(plot_grid[0].size)))
+            plot_grid = np.mgrid[bBox[0][0]:bBox[0][1]:n_grid_points*1j, bBox[1][0]:bBox[1][1]:n_grid_points*1j]
+            grid_pts = np.vstack((plot_grid[0].ravel(),plot_grid[1].ravel(),d+np.zeros(plot_grid[0].size)))
             
         if plane == 'y':
             n_grid_points = n_grid_pts
-            plot_grid = np.mgrid[-grid_size[0]/2:grid_size[0]/2:n_grid_points*1j, -grid_size[1]/2:grid_size[1]/2:n_grid_points*1j]
+            plot_grid = np.mgrid[bBox[0][0]:bBox[0][1]:n_grid_points*1j, bBox[2][0]:bBox[2][1]:n_grid_points*1j]
             grid_pts = np.vstack((plot_grid[0].ravel(),d+np.zeros(plot_grid[0].size),plot_grid[1].ravel()))       
             
         if plane == 'x':
             n_grid_points = n_grid_pts
-            plot_grid = np.mgrid[-grid_size[0]/2:grid_size[0]/2:n_grid_points*1j, -grid_size[1]/2:grid_size[1]/2:n_grid_points*1j]
+            plot_grid = np.mgrid[bBox[1][0]:bBox[1][1]:n_grid_points*1j, bBox[2][0]:bBox[2][1]:n_grid_points*1j]
             grid_pts = np.vstack((d+np.zeros(plot_grid[0].size),plot_grid[0].ravel(),plot_grid[1].ravel()))
-            
+             
 
         dlp_pot = bempp.api.operators.potential.helmholtz.double_layer(
             self.space, grid_pts, k, assembler="dense", device_interface=self.assembler)
@@ -2078,7 +2079,7 @@ class RoomBEM:
             
             
 
-    def combined_grid_evaluate(self,boundData,fi=0,plane="z",d=0,grid_size=[4,4],n_grid_pts=600):
+    def grid_evaluate(self,boundData,fi=0,plane="z",d=0,n_grid_pts=600):
         
         """
         Evaluates and plots the SPL in symmetrical grid for a mesh centered at [0,0,0].
@@ -2104,22 +2105,22 @@ class RoomBEM:
         pTS = {}
         
         k = 2*np.pi*self.f_range[fi]/self.c0
-
+        bBox = self.grid.bounding_box
         helpers.set_gpu()
         if plane == 'z':
             
             n_grid_points = n_grid_pts
-            plot_grid = np.mgrid[-grid_size[0]/2:grid_size[0]/2:n_grid_points*1j, -grid_size[1]/2:grid_size[1]/2:n_grid_points*1j]
+            plot_grid = np.mgrid[bBox[0][0]:grid_size[0][1]:n_grid_points*1j, bBox[1][0]:bBox[1][1]:n_grid_points*1j]
             grid_pts = np.vstack((plot_grid[0].ravel(),plot_grid[1].ravel(),d+np.zeros(plot_grid[0].size)))
             
         if plane == 'y':
             n_grid_points = n_grid_pts
-            plot_grid = np.mgrid[-grid_size[0]/2:grid_size[0]/2:n_grid_points*1j, -grid_size[1]/2:grid_size[1]/2:n_grid_points*1j]
+            plot_grid = np.mgrid[bBox[0][0]:grid_size[0][1]:n_grid_points*1j, bBox[2][0]:bBox[2][1]:n_grid_points*1j]
             grid_pts = np.vstack((plot_grid[0].ravel(),d+np.zeros(plot_grid[0].size),plot_grid[1].ravel()))       
             
         if plane == 'x':
             n_grid_points = n_grid_pts
-            plot_grid = np.mgrid[-grid_size[0]/2:grid_size[0]/2:n_grid_points*1j, -grid_size[1]/2:grid_size[1]/2:n_grid_points*1j]
+            plot_grid = np.mgrid[bBox[1][0]:grid_size[1][1]:n_grid_points*1j, bBox[2][0]:bBox[2][1]:n_grid_points*1j]
             grid_pts = np.vstack((d+np.zeros(plot_grid[0].size),plot_grid[0].ravel(),plot_grid[1].ravel()))
             
 
