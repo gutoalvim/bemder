@@ -238,6 +238,31 @@ class TMM:
                 print(f'Flow resistivity = {sigma} too large')
 
         return kc, zc
+    def PET(self, sigma):
+        """
+        Calculates the wavenumber (k) and characteristic impedance (zc) using the Delaney and Bazley formulations.
+        Acousic Absorbers and Diffusers by Trevor Cox and Peter D'Antonio
+        Eqs 5.7-5.9, 3rd Ed
+
+        Inputs:
+         - sigma: flow resistivity [rayls/m]
+        - warnings: display (1) or don't display (0) warnings about limitations of empirical formulation
+        """
+        # X = self.rho0 * self.freq / sigma  # Dimensionless quantity for Delany and Bazley
+        # zc = self.z0 * (1 + 0.0571 * (X ** -0.754) - 1j * 0.087 * (X ** -0.732))  # Characteristic impedance
+        # kc = (2 * np.pi / self.c0) * self.freq * (1 + 0.0978 * (X ** -0.700) - 1j * 0.189 * (X ** -0.595))  # Wavenumber
+
+        X = self.rho0 * self.freq / sigma
+        # c = [0.0495, -0.754, -0.0754, -0.732, 0.0848, -0.700, -0.164, -0.595]
+        c = [0.078, 0.623, 0.074, 0.660, 0.159, 0.571, 0.121, 0.530]  # db
+        cc = self.c0/(1 + c[0] * X ** c[1] - 1j * c[2] * X ** -c[3])
+        pc = self.z0/cc * (1 + c[4] * X ** -c[5] - 1j * c[6] * X ** -c[7])
+        
+        kc = 2*np.pi*self.freq/cc
+        zc = (cc*pc)
+        
+
+        return kc, zc
 
     def miki(self, sigma):
         """
@@ -252,6 +277,35 @@ class TMM:
 
         zc = self.z0 * (1 + 0.070 * (self.freq / sigma) ** -0.632 - 1j * 0.107 * (self.freq / sigma) ** -0.632)
         kc = self.k0 * (1 + 0.109 * (self.freq / sigma) ** -0.618 - 1j * 0.160 * (self.freq / sigma) ** -0.618)
+
+        return kc, zc
+
+    def allard_champoux(self, sigma,warnings=1):
+        """
+        Calculates the wavenumber (k) and characteristic impedance (zc) using Modiefied Allard & Champoux model.
+        New empirical equations for sound propagation in rigid frame fibrous materials
+        by Jean-F. Allard & Yvan Champoux 
+        Eqs. 5,6,7,8
+
+        Inputs:
+         - sigma: flow resistivity [rayls/m]
+        """
+        
+        X = self.rho0 * self.freq / sigma
+        # c = [0.0495, -0.754, -0.0754, -0.732, 0.0848, -0.700, -0.164, -0.595]
+        c = [0.0982, 0.685, 0.288, 0.526, 0.0729, 0.66228, 0.187, 0.5379]  # allard_champoux_modified
+        cc = self.c0/(1 + c[0] * X ** c[1] - 1j * c[2] * X ** -c[3])
+        pc = self.z0/cc * (1 + c[4] * X ** -c[5] - 1j * c[6] * X ** -c[7])
+        
+        kc = 2*np.pi*self.freq/cc
+        zc = (cc*pc)
+        
+        # Warnings
+        if warnings == 1:
+            if min(self.freq) < 45:
+                print(f'X = {min(self.freq)} too small')
+            if max(self.freq) > 11e3:
+                print(f'X = {max(self.freq)} too large')
 
         return kc, zc
 
@@ -390,6 +444,10 @@ class TMM:
         elif model == 'mg' or model == 'mechel':
             kc, zc = self.mechel_grundmann(sigma_k, fibre_type=model_params['fibre_type'],
                                            warnings=model_params['warnings'])
+        elif model == 'mac' or model == 'allard':
+            kc, zc = self.allard_champoux(sigma_k)
+        elif model == 'pet' or model == 'PET' or model == 'polyester':
+            kc, zc = self.PET(sigma_k)
 
         kc = numpy.matlib.repmat(kc, len(self.incidence_angle), 1).T
         #         kc = np.sqrt(kc_angle ** 2 - kc_angle **2 * np.sin(np.deg2rad(self.incidence_angle)))
@@ -562,7 +620,7 @@ class TMM:
                               'matrix': Tp,
                               }
 
-    def slotted_panel_layer(self, layer=None, t=19, w=8, s=16):
+    def slotted_panel_layer(self, layer=None, t=19, w=8, s=16, method='barrier'):
         """
         Adds a plate with rectangular slits to the existing device.
 
@@ -580,18 +638,32 @@ class TMM:
         s_meters = s / 1000
 
         open_area = w_meters / s_meters
-        #         print(f'Perforated panel open area: {open_area * 100:0.2f} [%]')
 
         t_corr = t_meters + 2 * w_meters * (-1 / np.pi) * np.log(np.sin(0.5 * np.pi * open_area))
+        
+        if method == 'barrier':
+            # Impedance from "On the design of resonant absorbers using a slotted plate" by Kristiansen and Vigran
+            vis = self.air_prop['air_viscosity']
+            Rp = 0.5 * np.sqrt(2 * vis * self.rho0 * self.w0) * (4 + (2 * t) / w)
+            Xp = self.w0 * self.rho0 * (t_corr)
+            zs = (Rp + 1j * Xp) / open_area
+            zs = numpy.matlib.repmat(zs, len(self.incidence_angle), 1).T 
+    
+            ones = np.ones_like(self.freq, shape=(len(self.freq), len(self.incidence_angle)))
+            zeros = np.zeros_like(self.freq, shape=(len(self.freq), len(self.incidence_angle)))
 
-        kc, zc = self.viscothermal_slit(w_meters, open_area)
+            Ts = np.array([[ones,  zs],
+                           [zeros, ones]])
+        
+        elif method =='eq_fluid':
+        
+            kc, zc = self.viscothermal_slit(w_meters, open_area)
+            kc = numpy.matlib.repmat(kc, len(self.incidence_angle), 1).T
+            zc = numpy.matlib.repmat(zc, len(self.incidence_angle), 1).T
 
-        kc = numpy.matlib.repmat(kc, len(self.incidence_angle), 1).T
-        #         kc = np.sqrt(kc ** 2 - kc **2 * np.sin(np.deg2rad(self.incidence_angle)))
-        zc = numpy.matlib.repmat(zc, len(self.incidence_angle), 1).T
-
-        Ts = np.array([[np.cos(kc * t_corr), 1j * zc / self.s0 * np.sin(kc * t_corr)],
-                       [1j * self.s0 / zc * np.sin(kc * t_corr), np.cos(kc * t_corr)]])
+            Ts = np.array([[np.cos(kc * t_corr), 1j * zc / self.s0 * np.sin(kc * t_corr)],
+                           [1j * self.s0 / zc * np.sin(kc * t_corr), np.cos(kc * t_corr)]])
+        
 
         if layer is None:
             layer = len(self.matrix)
@@ -600,7 +672,7 @@ class TMM:
                               'thickness [mm]': t,
                               'slot_width [mm]': w,
                               'slot_spacing [mm]': s,
-                              'open_area [%]': open_area,
+                              'open_area [%]': open_area * 100,
                               'matrix': Ts,
                               }
 

@@ -1,4 +1,4 @@
-#%%
+
 import time
 import warnings
 import bempp.api
@@ -19,8 +19,6 @@ warnings.filterwarnings('ignore')
 
 #bempp.api.GLOBAL_PARAMETERS.assembly.dense
 
-
-#%%
 def bem_load_legacy(filename,ext='.pickle'):
     
         import pickle
@@ -163,6 +161,88 @@ def bem_load(filename,ext='.pickle'):
         if EoI ==1:
             return RoomBEM(gridpack,AC,AP,S,R,mu),bData
 
+def bool_coord_from_geo(path_to_geo,geo_axis,coord_axis,mSize,dilate_amount):
+    try:  
+        import gmsh
+    except :
+        import gmsh_api.gmsh as gmsh
+    import sys
+    import os
+    gmsh.initialize(sys.argv)
+    gmsh.open(path_to_geo) # Open msh
+    tg = gmsh.model.getEntities(2)
+    tgv = gmsh.model.getEntities(3)
+    # gmsh.model.add('rect')
+    gmsh.option.setNumber("Mesh.CharacteristicLengthMin", mSize*0.95)
+    gmsh.option.setNumber("Mesh.CharacteristicLengthMax", mSize)
+    
+    ab = gmsh.model.getBoundingBox(3, tgv[0][1])
+    
+    xmin = ab[0]
+    xmax = ab[3]
+    ymin = ab[1]
+    ymax = ab[5]
+    zmin = ab[2]
+    zmax = ab[5]
+    
+    if geo_axis == 'z':
+        gmsh.model.occ.addPoint(xmin,ymin , coord_axis, 0., 3001)
+        gmsh.model.occ.addPoint(xmax,ymin , coord_axis, 0., 3002)
+        gmsh.model.occ.addPoint(xmax,ymax , coord_axis, 0., 3003)
+        gmsh.model.occ.addPoint(xmin,ymax , coord_axis, 0., 3004)
+        gmsh.model.occ.addLine(3001, 3004, 3001)
+        gmsh.model.occ.addLine(3004, 3003, 3002)
+        gmsh.model.occ.addLine(3003, 3002, 3003)
+        gmsh.model.occ.addLine(3002, 3001, 3004)
+        gmsh.model.occ.addCurveLoop([3004, 3001, 3002, 3003], 15000)
+        gmsh.model.occ.addPlaneSurface([15000], 15000)
+        gmsh.model.addPhysicalGroup(2, [15000], 15000)
+        
+        gmsh.model.occ.intersect(tgv, [(2,15000)],15000,True,True)
+
+        gmsh.model.occ.dilate([(2,15000)],(xmin+xmax)/2, (ymin+ymax)/2, 0, dilate_amount,dilate_amount, 0 )
+    if geo_axis == 'y':
+        gmsh.model.occ.addPoint(xmin,coord_axis , zmin, 0., 3001)
+        gmsh.model.occ.addPoint(xmax,coord_axis , zmin, 0., 3002)
+        gmsh.model.occ.addPoint(xmax,coord_axis , zmax, 0., 3003)
+        gmsh.model.occ.addPoint(xmin,coord_axis , xmax, 0., 3004)
+        gmsh.model.occ.addLine(3001, 3004, 3001)
+        gmsh.model.occ.addLine(3004, 3003, 3002)
+        gmsh.model.occ.addLine(3003, 3002, 3003)
+        gmsh.model.occ.addLine(3002, 3001, 3004)
+        gmsh.model.occ.addCurveLoop([3004, 3001, 3002, 3003], 15000)
+        gmsh.model.occ.addPlaneSurface([15000], 15000)
+        gmsh.model.addPhysicalGroup(2, [15000], 15000)
+
+        gmsh.model.occ.intersect(tgv, [(2,15000)],15000,True,True)
+
+        gmsh.model.occ.dilate([(2,15000)],(xmin+xmax)/2, 0, (zmin+zmax)/2,dilate_amount, 0, dilate_amount )
+    if geo_axis == 'x':
+        gmsh.model.occ.addPoint(coord_axis,ymin, zmin, 0., 3001)
+        gmsh.model.occ.addPoint(coord_axis,ymax , zmin, 0., 3002)
+        gmsh.model.occ.addPoint(coord_axis,ymax , zmax, 0., 3003)
+        gmsh.model.occ.addPoint(coord_axis,ymin , zmax, 0., 3004)
+        gmsh.model.occ.addLine(3001, 3004, 3001)
+        gmsh.model.occ.addLine(3004, 3003, 3002)
+        gmsh.model.occ.addLine(3003, 3002, 3003)
+        gmsh.model.occ.addLine(3002, 3001, 3004)
+        gmsh.model.occ.addCurveLoop([3004, 3001, 3002, 3003], 15000)
+        gmsh.model.occ.addPlaneSurface([15000], 15000)
+        gmsh.model.addPhysicalGroup(2, [15000], 15000)
+        
+        gmsh.model.occ.intersect(tgv, [(2,15000)],15000,True,True)
+        
+        gmsh.model.occ.dilate([(2,15000)],0, (ymin+ymax)/2, (zmin+zmax)/2, 0, dilate_amount, dilate_amount)
+    gmsh.model.occ.synchronize()
+    
+    gmsh.model.mesh.generate(2)
+
+    path_name = os.path.dirname(path_to_geo)
+    gmsh.write(path_name+'/current_field_bool.msh')
+    bool_msh = bempp.api.import_grid(path_name+'/current_field_bool.msh')
+    os.remove(path_name+'/current_field_bool.msh')
+    gmsh.finalize()
+    return bool_msh
 class ExteriorBEM:
     bempp.api.DEVICE_PRECISION_CPU = 'single'    
     """
@@ -215,7 +295,12 @@ class ExteriorBEM:
     grid_init = bempp.api.shapes.regular_sphere(2)
     
     def __init__(self,grid=grid_init,AC=AC_init,AP=AP_init,S=S_init,R=R_init,mu=None,v=None,assembler = 'numba'):
-        self.grid = grid
+        if type(grid) == list:
+            
+            self.grid = grid[1]
+            self.path_to_geo = grid[0]
+        else:
+            self.grid = grid
         self.f_range = AC.freq
         self.wavetype = S.wavetype
         # self.r0 = S.coord.reshape(len(S.coord),-1)
@@ -250,6 +335,8 @@ class ExteriorBEM:
             self.space = bempp.api.function_space(self.grid, "DP", 0)
         elif self.BC == "neumann":
             self.space = bempp.api.function_space(self.grid, "P", 1)
+            
+
     def soft_bemsolve(self):
         """
         Computes the bempp gridFunctions for the interior acoustic problem.
@@ -1328,7 +1415,12 @@ class InteriorBEM:
     grid_init = bempp.api.shapes.regular_sphere(2)
     
     def __init__(self,grid=grid_init,AC=AC_init,AP=AP_init,S=S_init,R=R_init,mu=None,v=None,assembler = 'numba'):
-        self.grid = grid
+        if type(grid) == list:
+            
+            self.grid = grid[1]
+            self.path_to_geo = grid[0]
+        else:
+            self.grid = grid
         self.f_range = AC.freq
         self.wavetype = S.wavetype
         # self.r0 = S.coord.reshape(len(S.coord),-1)
@@ -1686,7 +1778,129 @@ class InteriorBEM:
                 
             return  np.array([pT[i] for i in pT.keys()]).reshape(len(pT),len(R.coord)),np.array([pS[i] for i in pS.keys()]).reshape(len(pS),len(R.coord))
        
- 
+    def inside_evaluate(self,boundData,fi=0,plane="z",d=0,n_grid_pts=0.1,device='cpu',plotEng='plt'):
+        
+        """
+        Evaluates and plots the SPL in symmetrical grid for a mesh centered at [0,0,0].
+        
+        Inputs:
+            
+            fi = frequency index of array f_range
+            
+            plane = string containg axis to plot. eg: 'xy'
+            
+            d = Posistion of free axis (in relation to center)
+            
+            grid_size = Size of dimension to plot
+            
+            n_grid_pts = number of grid points
+            
+            boundP = output from bemsolve()
+            
+            boundU = output from bemsolve()
+        """
+        from matplotlib.colors import Normalize
+        
+        
+        dilate_amount=0.9
+        pT = {}
+        pTI = {}
+        pTS = {}
+        
+        k = 2*np.pi*self.f_range[fi]/self.c0
+        # bBox = self.grid.bounding_box
+        if self.assembler == 'opencl':
+            if device == "cpu":     
+                helpers.set_cpu()
+            if device == "gpu":
+                helpers.set_cpu()
+
+        grid_pts = bool_coord_from_geo(self.path_to_geo,plane,d,n_grid_pts,dilate_amount)
+        bmsh = grid_pts[2]
+        nbary = grid_pts[1]
+        grid_pts = bmsh.centroids
+        
+        
+        print(len(grid_pts))
+        
+        # print(grid_pts)
+        dlp_pot = bempp.api.operators.potential.helmholtz.double_layer(
+            self.space, grid_pts.T, k, assembler="dense", device_interface=self.assembler)
+        slp_pot = bempp.api.operators.potential.helmholtz.single_layer(
+            self.space, grid_pts.T, k, assembler="dense", device_interface=self.assembler)
+        pScat =  -dlp_pot.evaluate(boundData[fi][0])+slp_pot.evaluate(boundData[fi][1])
+        
+        # print(pScat)
+        
+        if self.wavetype == "plane":
+            pInc = self.planewave(fi,grid_pts,ir=0)
+            
+        if self.wavetype == "spherical":
+            pInc = self.monopole(fi,grid_pts,ir=0)
+            
+        # print(pInc)
+        grid_pT = np.conj(pScat+pInc)
+        grid_pTI = (np.real(pInc))
+        grid_pTS = (np.abs(pScat))
+        # print(20*np.log10(np.abs(grid_pTI)/2e-5)+3)  
+        if plane == 'x':
+            grid_pts_plt = np.array([grid_pts[:,1],grid_pts[:,2]])
+        if plane == 'y':
+            grid_pts_plt  = np.array([grid_pts[:,0],grid_pts[:,2]])
+        if plane == 'z':
+            grid_pts_plt  = np.array([grid_pts[:,0],grid_pts[:,1]])
+            # print(grid_pts_plt)
+            
+        normI = Normalize(vmin=np.min((20*np.log10(np.abs(grid_pTI)/2e-5)+3)), vmax=np.max((20*np.log10(np.abs(grid_pTI)/2e-5)+3)))
+        normS = Normalize(vmin=np.min((20*np.log10(np.abs(grid_pTS)/2e-5)+3)), vmax=np.max((20*np.log10(np.abs(grid_pTS)/2e-5)+3)))
+        normT = Normalize(vmin=np.min((20*np.log10(np.abs(grid_pT)/2e-5)+3)), vmax=np.max((20*np.log10(np.abs(grid_pT)/2e-5)+3)))
+        
+        if plotEng == 'plt':
+            plt.scatter(grid_pts_plt[0],grid_pts_plt[1],s=200,c=(20*np.log10(np.abs(grid_pTI)/2e-5)+3), norm = normI, cmap='jet',marker='.')
+            plt.colorbar()
+            plt.title('Incident Pressure Field - %1.1f Hz' %(self.f_range[fi]))
+            plt.show()
+            
+            
+            plt.scatter(grid_pts_plt[0],grid_pts_plt[1],s=200,c=20*np.log10(np.abs(grid_pTS)/2e-5)+3, norm = normS, cmap='jet',marker='.')
+            plt.colorbar()
+            plt.title('Scattered Pressure Field - %1.1f Hz' %(self.f_range[fi]))
+    
+            plt.show()
+            
+            plt.scatter(grid_pts_plt[0],grid_pts_plt[1],s=200,c=20*np.log10(np.abs(grid_pT)/2e-5)+3,norm = normT,  cmap='jet',marker='.')
+            plt.colorbar()
+            plt.title('Total Pressure Field - %1.1f Hz' %(self.f_range[fi]))
+            
+            plt.show()
+            
+        elif plotEng == 'plotly':
+            import plotly
+            import plotly.figure_factory as ff
+            import plotly.graph_objs as go
+            
+            cmap = plt.get_cmap("jet")
+            
+            plotly.io.renderers.default = "browser"
+            values = (20*np.log10(np.abs(grid_pT)/2e-5)+3).flatten()
+                        
+            colorfun = lambda x: np.rint(np.array(cmap(normT(x))) * 255)
+            color_codes = ["rgb({0}, {1}, {2})".format(*colorfun(x)) for x in values]
+            
+            vertices = bmsh.vertices
+            elements = bmsh.elements
+            
+            print(len(elements.T))
+            fig = ff.create_trisurf(
+                x=vertices[0, :],
+                y=vertices[1, :],
+                z=vertices[2, :],
+                simplices=elements.T,
+                color_func=color_codes,
+            )
+            fig['layout']['scene'].update(go.layout.Scene(aspectmode='data'))
+            plotly.offline.iplot(fig)
+        # return pT[fi], grid_pts
     def grid_evaluate(self,boundData,fi=0,plane="z",d=0,grid_size=[4,4],n_grid_pts=600,device='cpu'):
         
         """
@@ -1833,339 +2047,3 @@ class InteriorBEM:
         outfile.close()
         print('BEM saved successfully.')
     
-#%%
-class RoomBEM:
-    
-    """
-    Hi, this class contains some tools to solve the interior acoustic problem with monopole point sources. First, you gotta 
-    give some inputs:
-        
-    Inputs:
-        
-        space = bempp.api.function_space(grid, "DP", 0) || grid = bempp.api.import_grid('#YOURMESH.msh')
-        
-        f_range = array with frequencies of analysis. eg:   f1= 20
-                                                            f2 = 150
-                                                            df = 2
-                                                            f_range = np.arange(f1,f2+df,df) 
-        
-        c0 = speed of sound
-        
-        r0 = dict[0:numSources] with source positions. eg:  r0 = {}
-                                                            r0[0] =  np.array([1.4,0.7,-0.35])
-                                                            r0[1] = np.array([1.4,-0.7,-0.35])
-                                                            
-        q = dict[0:numSources] with constant source strenght S. eg: q = {}
-                                                                    q[0] = 1
-                                                                    q[1] = 1
-        
-        mu = dict[physical_group_id]| A dictionary containing f_range sized arrays with admittance values. 
-        The key (index) to the dictionary must be the physical group ID defined in Gmsh. If needed, check out
-        the bemder.porous functions :). 
-                                        eg: zsd1 = porous.delany(5000,0.1,f_range)
-                                            zsd2 = porous.delany(10000,0.2,f_range)
-                                            zsd3 = porous.delany(15000,0.3,f_range)
-                                            mud1 = np.compleZ128(rho0*c0/np.conj(zsd1))
-                                            mud2 = np.complex128(rho0*c0/np.conj(zsd2))
-                                            mud3 = np.complex128(rho0*c0/np.conj(zsd3))
-                                            
-                                            mu = {}
-                                            mu[1] = mud2
-                                            mu[2] = mud2
-                                            mu[3] = mud3
-        
-        
-
-    """
-    AP_init = ctrl.AirProperties()
-    AC_init = ctrl.AlgControls(AP_init.c0, 1000,1000,10)
-    S_init = sources.Source("plane",coord=[2,0,0])
-    R_init = receivers.Receiver(coord=[1.5,0,0])
-    grid_init = bempp.api.shapes.regular_sphere(2)
-    
-    def __init__(self,grid=grid_init,AC=AC_init,AP=AP_init,S=S_init,R=R_init,mu=None):
-        self.grid = grid
-        self.f_range = AC.freq
-        self.wavetype = S.wavetype
-        self.r0 = S.coord.T
-        self.q = S.q
-        self.mu = mu
-        self.c0 = AP.c0
-        self.rho0 = AP.rho0
-        self.AP = AP
-        self.AC = AC
-        self.S = S
-        self.R = R
-        self.EoI = 0
-
-  
-    def bemsolve(self,device='cpu'):
-        """
-        Computes the bempp gridFunctions for the interior acoustic problem.
-        
-        Outputs: 
-            
-            boundP = grid_function for boundary pressure
-            
-            boundU = grid_function for boundary velocity
-        
-        """
-        if device == "cpu":     
-            helpers.set_cpu()
-        if device == "gpu":
-            helpers.set_cpu()
-        self.boundData = {}
-        self.space = bempp.api.function_space(self.grid, "DP", 0)
-        
-        for fi in range(np.size(self.f_range)):
-        
-            f = self.f_range[fi] #Convert index to frequency
-            k = 2*np.pi*f/self.c0 # Calculate wave number
-            @bempp.api.real_callable
-            def mu_fun_r(r,n,domain_index,result):
-                with numba.objmode():
-
-                    result[0]=np.real((self.mu[domain_index][fi]))
-            @bempp.api.real_callable
-            def mu_fun_i(r,n,domain_index,result):
-                with numba.objmode():
-                    result[0]=np.imag((self.mu[domain_index][fi]))
-                                        
-
-            mu_op_r = bempp.api.MultiplicationOperator(bempp.api.GridFunction(self.space,fun=mu_fun_r),self.space,self.space,self.space)
-            mu_op_i = bempp.api.MultiplicationOperator(bempp.api.GridFunction(self.space,fun=mu_fun_i),self.space,self.space,self.space)
-        
-            identity = bempp.api.operators.boundary.sparse.identity(
-                self.space, self.space, self.space)
-            dlp = bempp.api.operators.boundary.helmholtz.double_layer(
-                self.space, self.space, self.space, k)
-            slp = bempp.api.operators.boundary.helmholtz.single_layer(
-                self.space, self.space, self.space, k)
-            
-            a = 1j*k*(mu_op_r+1j*mu_op_i)
-            @bempp.api.complex_callable
-            def monopole_data(r, n, domain_index, result):
-                with numba.objmode():
-                    result[0]=0
-                    for i in range(len(self.r0.T)):
-                        pos = np.linalg.norm(r-self.r0[:,i])
-                        val  = self.q.flat[i]*np.exp(1j*k*pos)/(4*np.pi*pos)
-                        result[0] +=  -(1j*(self.mu[domain_index][fi])*k*val - val/(pos*pos) * (1j*k*pos-1)* np.dot(r-self.r0[i],n))
-                
-            monopole_fun = bempp.api.GridFunction(self.space, fun=monopole_data)
-#            v_fun = bempp.api.GridFunction(self.space, fun=v_data)
-        
-            lhs = (.5 * identity + dlp - a*slp) 
-            rhs = -slp*(monopole_fun)
-        
-        
-            boundP, info = bempp.api.linalg.gmres(lhs, rhs, tol=1E-5, use_strong_form=True)
-        
-            boundU = a*boundP - monopole_fun
-            
-            self.boundData[fi] = [boundP, boundU]
-            # u[fi] = boundU
-            
-            self.BC = "robin"
-            
-            print('{} / {}'.format(fi+1,np.size(self.f_range)))
-            
-        return self.boundData
-    
-    def monopole(self,fi,pts):
-        
-        pInc = np.zeros(pts.shape[0], dtype='complex128')
-        
-        for i in range(len(self.r0.T)): 
-            pos = np.linalg.norm(pts-self.r0[:,i].reshape(1,3),axis=1)
-            pInc += self.q.flat[i]*np.exp(1j*(2*np.pi*self.f_range[fi]/self.c0)*pos)/(4*np.pi*pos)
-            
-        return pInc  
-    
-    def point_evaluate(self,R, boundD):
-        
-        """
-        Evaluates the solution (pressure) for a point.
-        
-        Inputs:
-            points = dict[0:numPoints] containing np arrays with receiver positions 
-            
-            boundP = output from bemsolve()
-            
-            boundU = output from bemsolve()
-            
-        Output:
-            
-           pT =  Total Pressure Field
-           
-        """
-        bempp.api.set_default_device(1,0)
-        print('\nSelected device:', bempp.api.default_device().name) 
-        pT = {}
-        pS = {}
-        pts = R.coord.reshape(len(R.coord),3)
-
-        for fi in range(np.size(self.f_range)):
-            f = self.f_range[fi] #Convert index to frequency
-            k = 2*np.pi*f/self.c0
-                
-            slp_pot = bempp.api.operators.potential.helmholtz.single_layer(
-                self.space, pts.T, k,assembler='dense')
-            dlp_pot = bempp.api.operators.potential.helmholtz.double_layer(
-                self.space, pts.T, k)
-            pScat =  (slp_pot * boundD[fi][1] - dlp_pot * boundD[fi][0])
-            
-            pInc = self.monopole(fi,pts)
-            
-            pT[fi] = np.conj(pInc+pScat)
-            pS[fi] = np.conj(pScat)
-
-            print(20*np.log10(np.abs(pT[fi])/2e-5))
-            print('{} / {}'.format(fi+1,np.size(self.f_range)))
-            
-        return  np.array([pT[i] for i in pT.keys()]).reshape(len(pT),len(R.coord)),np.array([pS[i] for i in pS.keys()]).reshape(len(pS),len(R.coord))
-    
-    # def velocity_evaluate(self,R,bD):
-        
-    #     bempp.api.set_default_device(1,0)
-    #     print('\nSelected device:', bempp.api.default_device().name) 
-    #     pT = {}
-    #     pS = {}
-    #     vx = {}
-    #     vy = {}
-    #     vz = {}
-    #     pts = R.coord.reshape(len(R.coord),3)
-
-    #     for fi in range(np.size(self.f_range)):
-    #         f = self.f_range[fi] #Convert index to frequency
-    #         k = 2*np.pi*f/self.c0
-            
-    #         ptsX1 = pts[0,:] + 0.25*self.f_range[fi]*self.c0
-    #         ptsX2 = pts[0,:] - 0.25*self.f_range[fi]*self.c0
-
-    #         ptsY1 = pts[1,:] + 0.25*self.f_range[fi]*self.c0
-    #         ptsY2 = pts[1,:] - 0.25*self.f_range[fi]*self.c0
-                
-    #         ptsZ1 = pts[3,:] + 0.25*self.f_range[fi]*self.c0
-    #         ptsZ2 = pts[3,:] - 0.25*self.f_range[fi]*self.c0
-            
-    #         ptsT = np.hstack(pts,ptsX1,ptsX2,ptsY2,ptsY2,ptsZ1,ptsZ2)
-            
-    #         # ptsT = ptsT.reshape(len(R.coord)*7,3)
-            
-    #         slp_pot = bempp.api.operators.potential.helmholtz.single_layer(
-    #             self.space, ptsT.T, k)
-    #         dlp_pot = bempp.api.operators.potential.helmholtz.double_layer(
-    #             self.space, ptsT.T, k)
-    #         pScat =  (slp_pot * boundD[fi][1] - dlp_pot * boundD[fi][0])
-            
-    #         pInc = self.monopole(fi,pts)
-            
-    #         pT[fi] = np.conj(pInc+pScat)
-    #         pS[fi] = np.conj(pScat)
-            
-    #         pT[fi] = pT.reshape(7,3)
-            
-    #         vx[fi] = np.grad(pT[fi][1],pT[fi][2])
-    #         vy[fi] = np.grad(pT[fi][3],pT[fi][4])
-    #         vz[fi] = np.grad(pT[fi][5],pT[fi][6])
-
-    #         print(20*np.log10(np.abs(pT[fi])/2e-5))
-    #         print('{} / {}'.format(fi+1,np.size(self.f_range)))
-            
-    #     return  np.array([vx[i] for i in vx.keys()]).reshape(len(vx),len(R.coord)),
-    # np.array([vy[i] for i in vy.keys()]).reshape(len(vy),len(R.coord)),
-    # np.array([vz[i] for i in vy.keys()]).reshape(len(vz),len(R.coord))
-            
-            
-
-    def grid_evaluate(self,boundData,fi=0,plane="z",d=0,n_grid_pts=600):
-        
-        """
-        Evaluates and plots the SPL in symmetrical grid for a mesh centered at [0,0,0].
-        
-        Inputs:
-            
-            fi = frequency index of array f_range
-            
-            plane = string containg axis to plot. eg: 'xy'
-            
-            d = Posistion of free axis (in relation to center)
-            
-            grid_size = Size of dimension to plot
-            
-            n_grid_pts = number of grid points
-            
-            boundP = output from bemsolve()
-            
-            boundU = output from bemsolve()
-        """
-        pT = {}
-        pTI = {}
-        pTS = {}
-        
-        k = 2*np.pi*self.f_range[fi]/self.c0
-        bBox = self.grid.bounding_box
-        helpers.set_gpu()
-        if plane == 'z':
-            
-            n_grid_points = n_grid_pts
-            plot_grid = np.mgrid[bBox[0][0]:grid_size[0][1]:n_grid_points*1j, bBox[1][0]:bBox[1][1]:n_grid_points*1j]
-            grid_pts = np.vstack((plot_grid[0].ravel(),plot_grid[1].ravel(),d+np.zeros(plot_grid[0].size)))
-            
-        if plane == 'y':
-            n_grid_points = n_grid_pts
-            plot_grid = np.mgrid[bBox[0][0]:grid_size[0][1]:n_grid_points*1j, bBox[2][0]:bBox[2][1]:n_grid_points*1j]
-            grid_pts = np.vstack((plot_grid[0].ravel(),d+np.zeros(plot_grid[0].size),plot_grid[1].ravel()))       
-            
-        if plane == 'x':
-            n_grid_points = n_grid_pts
-            plot_grid = np.mgrid[bBox[1][0]:grid_size[1][1]:n_grid_points*1j, bBox[2][0]:bBox[2][1]:n_grid_points*1j]
-            grid_pts = np.vstack((d+np.zeros(plot_grid[0].size),plot_grid[0].ravel(),plot_grid[1].ravel()))
-            
-
-
-        elif self.BC == "robin":
-            dlp_pot = bempp.api.operators.potential.helmholtz.double_layer(
-                self.space, grid_pts, k)
-            slp_pot = bempp.api.operators.potential.helmholtz.single_layer(
-                self.space, grid_pts, k)
-            pScat =  dlp_pot.evaluate(boundData[fi][0])-slp_pot.evaluate(boundData[fi][1])
-            
-        
-        # if self.wavetype == "plane":
-        #     pInc = self.planewave(fi,grid_pts.T)
-            
-        if self.wavetype == "spherical":
-            pInc = self.monopole(fi,grid_pts.T)
-            
-        grid_pT = np.conj(pScat+pInc)
-        grid_pTI = (np.real(pInc))
-        grid_pTS = (np.abs(pScat))
-
-        
-        pT[fi] = grid_pT.reshape((n_grid_points,n_grid_points))
-        
-
-
-        pTI[fi] = grid_pTI.reshape((n_grid_points,n_grid_points))
-        
-        plt.imshow(20*np.log10(np.abs(pTI[fi].T)/2e-5),  cmap='jet')
-        plt.colorbar()
-        plt.title('Incident Pressure Field - %1.1f Hz' %(self.f_range[fi]))
-        plt.show()
-        
-        pTS[fi] = grid_pTS.reshape((n_grid_points,n_grid_points))
-        
-        plt.imshow(20*np.log10(np.abs(pTS[fi].T)/2e-5),  cmap='jet')
-        plt.colorbar()
-        plt.title('Scattered Pressure Field - %1.1f Hz' %(self.f_range[fi]))
-
-        plt.show()
-        
-        plt.imshow(20*np.log10(np.abs(pT[fi].T)/2e-5),  cmap='jet')
-        plt.colorbar()
-        plt.title('Total Pressure Field - %1.1f Hz' %(self.f_range[fi]))
-        
-        plt.show()
-        return pT[fi], grid_pts
