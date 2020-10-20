@@ -9,6 +9,7 @@ try:
     import gmsh
 except :
     import gmsh_api.gmsh as gmsh
+    
 import bempp.api
 import sys
 import os
@@ -41,7 +42,7 @@ def import_grid(path_to_msh,show_mesh=False,gmsh_filepath=None):
     for i in range(len(phgr)):
         gmsh.model.addPhysicalGroup(2, phgr_ent[i],phgr_ordered[i])
         
-        
+    gmsh.fltk.run()   
     path_name = os.path.dirname(path_to_msh)
     gmsh.write(path_name+'/current_mesh.msh')        
     if show_mesh == True:
@@ -56,7 +57,7 @@ def import_grid(path_to_msh,show_mesh=False,gmsh_filepath=None):
 
 
     gmsh.finalize()
-    return bempp.api.import_grid(path_name+'/current_mesh.msh')
+    return [path_to_msh,bempp.api.import_grid(path_name+'/current_mesh.msh')]
 
 def import_geo(path_to_geo, max_freq, num_freq,show_mesh=False):
     """
@@ -79,20 +80,22 @@ def import_geo(path_to_geo, max_freq, num_freq,show_mesh=False):
     gmsh.option.setNumber("Mesh.CharacteristicLengthMax", 343/max_freq/num_freq)
     gmsh.model.mesh.generate(2)  
     # gmsh.fltk.run()
-    # phgr = gmsh.model.getPhysicalGroups(2)
-    # odph = []
-    # for i in range(len(phgr)):
-    #     odph.append(phgr[i][1]) 
-    # phgr_ordered = [i for i in range(0, len(phgr))]
-    # phgr_ent = []
-    # for i in range(len(phgr)):
-    #     phgr_ent.append(gmsh.model.getEntitiesForPhysicalGroup(phgr[i][0],phgr[i][1]))
-    # gmsh.model.removePhysicalGroups()
-    # for i in range(len(phgr)):
-    #     gmsh.model.addPhysicalGroup(2, phgr_ent[i],phgr_ordered[i])
+    phgr = gmsh.model.getPhysicalGroups(2)
+    odph = []
+    for i in range(len(phgr)):
+        odph.append(phgr[i][1]) 
+    phgr_ordered = [i for i in range(0, len(phgr))]
+    phgr_ent = []
+    for i in range(len(phgr)):
+        phgr_ent.append(gmsh.model.getEntitiesForPhysicalGroup(phgr[i][0],phgr[i][1]))
+    gmsh.model.removePhysicalGroups()
+    for i in range(len(phgr)):
+        gmsh.model.addPhysicalGroup(2, phgr_ent[i],phgr_ordered[i])
         
     
+
     path_name = os.path.dirname(path_to_geo)
+    # gmsh.fltk.run()
     gmsh.write(path_name+'/current_mesh.msh')        
     if show_mesh == True:
         try:

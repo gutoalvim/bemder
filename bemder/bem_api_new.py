@@ -170,7 +170,6 @@ def bool_coord_from_geo(path_to_geo,geo_axis,coord_axis,mSize,dilate_amount):
     import os
     gmsh.initialize(sys.argv)
     gmsh.open(path_to_geo) # Open msh
-    tg = gmsh.model.getEntities(2)
     tgv = gmsh.model.getEntities(3)
     # gmsh.model.add('rect')
     gmsh.option.setNumber("Mesh.CharacteristicLengthMin", mSize*0.95)
@@ -1778,7 +1777,7 @@ class InteriorBEM:
                 
             return  np.array([pT[i] for i in pT.keys()]).reshape(len(pT),len(R.coord)),np.array([pS[i] for i in pS.keys()]).reshape(len(pS),len(R.coord))
        
-    def inside_evaluate(self,boundData,fi=0,plane="z",d=0,n_grid_pts=0.1,device='cpu',plotEng='plt'):
+    def inside_evaluate(self,boundData,fi=0,plane="z",d=0,n_grid_pts=0.1,device='cpu',plotEng='plt',plot_room=False):
         
         """
         Evaluates and plots the SPL in symmetrical grid for a mesh centered at [0,0,0].
@@ -1802,10 +1801,8 @@ class InteriorBEM:
         from matplotlib.colors import Normalize
         
         
-        dilate_amount=0.9
-        pT = {}
-        pTI = {}
-        pTS = {}
+        dilate_amount=0.97
+
         
         k = 2*np.pi*self.f_range[fi]/self.c0
         # bBox = self.grid.bounding_box
@@ -1815,15 +1812,16 @@ class InteriorBEM:
             if device == "gpu":
                 helpers.set_cpu()
 
-        grid_pts = bool_coord_from_geo(self.path_to_geo,plane,d,n_grid_pts,dilate_amount)
-        bmsh = grid_pts[2]
-        nbary = grid_pts[1]
+        bmsh= bool_coord_from_geo(self.path_to_geo,plane,d,n_grid_pts,dilate_amount)
         grid_pts = bmsh.centroids
-        
-        
-        print(len(grid_pts))
-        
-        # print(grid_pts)
+        if plane == 'z':
+            grid_pts[:,2] = grid_pts[:,2]+d
+        elif plane == 'y':
+            grid_pts[:,1] = grid_pts[:,1]+d
+        elif plane == 'x':
+            grid_pts[:,0] = grid_pts[:,0]+d
+                    
+        # print(grid_pts[:,2])
         dlp_pot = bempp.api.operators.potential.helmholtz.double_layer(
             self.space, grid_pts.T, k, assembler="dense", device_interface=self.assembler)
         slp_pot = bempp.api.operators.potential.helmholtz.single_layer(
@@ -1839,7 +1837,7 @@ class InteriorBEM:
             pInc = self.monopole(fi,grid_pts,ir=0)
             
         # print(pInc)
-        grid_pT = np.conj(pScat+pInc)
+        grid_pT = (pScat+pInc)
         grid_pTI = (np.real(pInc))
         grid_pTS = (np.abs(pScat))
         # print(20*np.log10(np.abs(grid_pTI)/2e-5)+3)  
@@ -1879,27 +1877,51 @@ class InteriorBEM:
             import plotly.figure_factory as ff
             import plotly.graph_objs as go
             
-            cmap = plt.get_cmap("jet")
             
             plotly.io.renderers.default = "browser"
             values = (20*np.log10(np.abs(grid_pT)/2e-5)+3).flatten()
-                        
-            colorfun = lambda x: np.rint(np.array(cmap(normT(x))) * 255)
-            color_codes = ["rgb({0}, {1}, {2})".format(*colorfun(x)) for x in values]
+
             
             vertices = bmsh.vertices
             elements = bmsh.elements
-            
-            print(len(elements.T))
-            fig = ff.create_trisurf(
-                x=vertices[0, :],
-                y=vertices[1, :],
-                z=vertices[2, :],
-                simplices=elements.T,
-                color_func=color_codes,
+            xd = 0
+            yd = 0
+            zd = 0
+            # print(len(elements.T))
+            if plane == 'z':
+                zd = d  
+            elif plane == 'y':
+                yd = d; 
+            elif plane == 'x':
+                xd = d;
+                
+            vertices_r = self.grid.vertices
+            elements_r = self.grid.elements
+            fig_room = ff.create_trisurf(
+                x=vertices_r[0, :],
+                y=vertices_r[1, :],
+                z=vertices_r[2, :],
+                simplices=elements_r.T,
+                color_func=elements_r.shape[1] * ["rgb(255, 222, 173)"],
             )
-            fig['layout']['scene'].update(go.layout.Scene(aspectmode='data'))
-            plotly.offline.iplot(fig)
+            fig_room['data'][0].update(opacity=0.3)
+            # fig.add_trace(fig_room.trace)
+            # print(color_codes)
+            fig_room.add_trace(go.Mesh3d(
+                x=vertices[0, :]+xd,
+                y=vertices[1, :]+yd,
+                z=vertices[2, :]+zd,
+                i=elements[0,:],
+                j=elements[1,:],
+                k=elements[2,:],
+                # facecolor = color_codes,
+                intensity = values,
+                colorscale= 'Jet',
+                intensitymode='cell',
+                ))
+
+            
+            plotly.offline.iplot(fig_room,image_height=1000,image_width=1400)
         # return pT[fi], grid_pts
     def grid_evaluate(self,boundData,fi=0,plane="z",d=0,grid_size=[4,4],n_grid_pts=600,device='cpu'):
         
@@ -2046,4 +2068,33 @@ class InteriorBEM:
         cloudpickle.dump(simulation_data, outfile)
         outfile.close()
         print('BEM saved successfully.')
+        
+    def plot_room(self,S=None,R=None, opacity = 0.3, mode="element", transformation=None):
+        import plotly.figure_factory as ff
+        import plotly.graph_objs as go
+        import numpy as np
+        import plotly
+        
+        vertices = self.grid.vertices
+        elements = self.grid.elements
+        fig = ff.create_trisurf(
+            x=vertices[0, :],
+            y=vertices[1, :],
+            z=vertices[2, :],
+            simplices=elements.T,
+            color_func=elements.shape[1] * ["rgb(255, 222, 173)"],
+        )
+        fig['data'][0].update(opacity=opacity)
+        fig['layout']['scene'].update(go.layout.Scene(aspectmode='data'))
+        
+        if R != None:
+            fig.add_trace(go.Scatter3d(x = R.coord[:,0], y = R.coord[:,1], z = R.coord[:,2],marker=dict(size=8, color='rgb(0, 0, 128)', symbol='circle'),name="Receivers"))
+            
+        if S != None:    
+            if S.wavetype == "spherical":
+                fig.add_trace(go.Scatter3d(x = S.coord[:,0], y = S.coord[:,1], z = S.coord[:,2],marker=dict(size=8, color='rgb(128, 0, 0)', symbol='square'),name="Sources"))
+
+        # fig.add_trace(go.Mesh3d(x=[-6,6,-6,6], y=[-6,6,-6,6], z=0 * np.zeros_like([-6,6,-6,6]), color='red', opacity=0.5, showscale=False))
+
+        return fig
     
