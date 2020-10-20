@@ -97,17 +97,18 @@ def import_geo(path_to_geo, max_freq, num_freq,show_mesh=False):
     path_name = os.path.dirname(path_to_geo)
     # gmsh.fltk.run()
     gmsh.write(path_name+'/current_mesh.msh')        
-    if show_mesh == True:
-        try:
-            bempp.api.PLOT_BACKEND = "jupyter_notebook"
-            bempp.api.import_grid(path_name+'/current_mesh.msh').plot()
-        except:
-            # gmsh.fltk.run()
-            # bempp.api.GMSH_PATH = gmsh_filepath
-            # bempp.api.PLOT_BACKEND = "gmsh"
-            # bempp.api.import_grid(path_name+'/current_mesh.msh').plot()
+    # if show_mesh == True:
+    #     try:
+    #         bempp.api.PLOT_BACKEND = "jupyter_notebook"
+    #         bempp.api.import_grid(path_name+'/current_mesh.msh').plot()
+    #     except:
+    #         # gmsh.fltk.run()
+    #         # bempp.api.GMSH_PATH = gmsh_filepath
+    #         # bempp.api.PLOT_BACKEND = "gmsh"
+    #         # bempp.api.import_grid(path_name+'/current_mesh.msh').plot()
 
 
 
+    
     gmsh.finalize()
     return [path_to_geo,bempp.api.import_grid(path_name+'/current_mesh.msh')]
