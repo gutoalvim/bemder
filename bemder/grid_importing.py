@@ -42,7 +42,7 @@ def import_grid(path_to_msh,show_mesh=False,gmsh_filepath=None):
     for i in range(len(phgr)):
         gmsh.model.addPhysicalGroup(2, phgr_ent[i],phgr_ordered[i])
         
-    gmsh.fltk.run()   
+    # gmsh.fltk.run()   
     path_name = os.path.dirname(path_to_msh)
     gmsh.write(path_name+'/current_mesh.msh')        
     if show_mesh == True:
@@ -102,7 +102,7 @@ def import_geo(path_to_geo, max_freq, num_freq,show_mesh=False):
             bempp.api.PLOT_BACKEND = "jupyter_notebook"
             bempp.api.import_grid(path_name+'/current_mesh.msh').plot()
         except:
-            gmsh.fltk.run()
+            # gmsh.fltk.run()
             # bempp.api.GMSH_PATH = gmsh_filepath
             # bempp.api.PLOT_BACKEND = "gmsh"
             # bempp.api.import_grid(path_name+'/current_mesh.msh').plot()
