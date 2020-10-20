@@ -1873,10 +1873,23 @@ class InteriorBEM:
             plt.show()
             
         elif plotEng == 'plotly':
+            
             import plotly
             import plotly.figure_factory as ff
             import plotly.graph_objs as go
-            
+            def configure_plotly_browser_state():
+              import IPython
+              display(IPython.core.display.HTML('''
+                    <script src="/static/components/requirejs/require.js"></script>
+                    <script>
+                      requirejs.config({
+                        paths: {
+                          base: '/static/base',
+                          plotly: 'https://cdn.plot.ly/plotly-1.5.1.min.js?noext',
+                        },
+                      });
+                    </script>
+                    '''))
             
             plotly.io.renderers.default = "browser"
             values = (20*np.log10(np.abs(grid_pT)/2e-5)+3).flatten()
@@ -1920,7 +1933,7 @@ class InteriorBEM:
                 intensitymode='cell',
                 ))
 
-            
+            configure_plotly_browser_state()
             plotly.offline.iplot(fig_room,image_height=1000,image_width=1400)
         # return pT[fi], grid_pts
     def grid_evaluate(self,boundData,fi=0,plane="z",d=0,grid_size=[4,4],n_grid_pts=600,device='cpu'):
