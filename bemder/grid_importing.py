@@ -110,5 +110,5 @@ def import_geo(path_to_geo, max_freq, num_freq,show_mesh=False):
 
 
     
-    gmsh.finalize()
+    gmsh.finalize() 
     return [path_to_geo,bempp.api.import_grid(path_name+'/current_mesh.msh')]

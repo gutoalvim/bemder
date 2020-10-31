@@ -255,12 +255,21 @@ class TMM:
         X = self.rho0 * self.freq / sigma
         # c = [0.0495, -0.754, -0.0754, -0.732, 0.0848, -0.700, -0.164, -0.595]
         c = [0.078, 0.623, 0.074, 0.660, 0.159, 0.571, 0.121, 0.530]  # db
-        cc = self.c0/(1 + c[0] * X ** c[1] - 1j * c[2] * X ** -c[3])
-        pc = self.z0/cc * (1 + c[4] * X ** -c[5] - 1j * c[6] * X ** -c[7])
+
+        zr = self.z0*(1+c[0]*X**(-c[1]))
+        zi = -self.z0*(c[2]*X**(-c[3]))
         
-        kc = 2*np.pi*self.freq/cc
-        zc = (cc*pc)
+        kcr = (self.w0/self.c0)*(c[4]*X**(-c[5]))
+        kci = (self.w0/self.c0)*(1+c[6]*X**(-c[7]))
         
+        # cc = self.c0/(1 + c[0] * X ** c[1] - 1j * c[2] * X ** -c[3])
+        # pc = self.z0/cc * (1 + c[4] * X ** -c[5] - 1j * c[6] * X ** -c[7])
+        
+        # kc = 2*np.pi*self.freq/cc
+        # zc = (cc*pc)
+        
+        kc = kcr - 1j*kci
+        zc = zr - 1j*zi
 
         return kc, zc
 
@@ -275,12 +284,27 @@ class TMM:
          - sigma: flow resistivity [rayls/m]
         """
 
-        zc = self.z0 * (1 + 0.070 * (self.freq / sigma) ** -0.632 - 1j * 0.107 * (self.freq / sigma) ** -0.632)
-        kc = self.k0 * (1 + 0.109 * (self.freq / sigma) ** -0.618 - 1j * 0.160 * (self.freq / sigma) ** -0.618)
-
+        # zc = self.z0 * (1 + 0.070 * (self.freq / sigma) ** -0.632 - 1j * 0.107 * (self.freq / sigma) ** -0.632)
+        # kc = self.k0 * (1 + 0.109 * (self.freq / sigma) ** -0.618 - 1j * 0.160 * (self.freq / sigma) ** -0.618)
+        C1=0.122
+        C2=0.618
+        C3=0.18
+        C4=0.618
+        C5=0.079
+        C6=0.632
+        C7=0.12
+        C8=0.632
+        X = self.freq*self.rho0/sigma
+        cc = self.c0/(1+C1*np.power(X,-C2) -1j*C3*np.power(X,-C4))
+        rhoc = (self.rho0*self.c0/cc)*(1+C5*np.power(X,-C6)-1j*C7*np.power(X,-C8))
+        
+        zc = cc*rhoc
+        kc = 2*np.pi*self.freq/cc
+        
+        
         return kc, zc
 
-    def allard_champoux(self, sigma,warnings=1):
+    def allard_champoux(self, sigma,warnings=0):
         """
         Calculates the wavenumber (k) and characteristic impedance (zc) using Modiefied Allard & Champoux model.
         New empirical equations for sound propagation in rigid frame fibrous materials
@@ -1037,7 +1061,7 @@ class TMM:
         Af = integrate.simps(Af_div, np.deg2rad(self.incidence_angle))
 
         return 1 / Af
-
+    
     def compute(self, rigid_backing=True, conj=False, show_layers=True):
         """
         Calculates the final transfer matrix for the existing layers.
@@ -1081,7 +1105,7 @@ class TMM:
         if show_layers:
             self.show_layers()
 
-
+    
 if __name__ == '__main__':
     tmm = TMM(fmax=5000,
               incidence='diffuse',
