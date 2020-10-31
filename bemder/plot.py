@@ -17,7 +17,7 @@ def plot_problem(obj,S=None,R=None,grid_pts=None, pT=None, opacity = 0.75, mode=
     from bempp.api import GridFunction
     from bempp.api.grid.grid import Grid
     import numpy as np
-    
+    obj = obj[1]
     if transformation is None:
         transformation = np.abs
         
@@ -42,6 +42,7 @@ def plot_problem(obj,S=None,R=None,grid_pts=None, pT=None, opacity = 0.75, mode=
                 '''))
             
     plotly.offline.init_notebook_mode()
+    
     if isinstance(obj, Grid):
         vertices = obj.vertices
         elements = obj.elements
