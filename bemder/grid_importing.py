@@ -8,7 +8,7 @@ Created on Fri Sep  4 11:51:47 2020
 try:  
     import gmsh
 except :
-    import gmsh_api.gmsh as gmsh
+        import gmsh_api.gmsh as gmsh
     
 import bempp.api
 import sys

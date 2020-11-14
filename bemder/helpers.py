@@ -448,3 +448,241 @@ def r_s_coef(frequency, pDiffuser,pRef,S,n_average=7,s_number=False):
             s[ic] = np.mean(sr)
     
     return s
+
+
+class IR(object):
+    """Perform a room impulse response computation."""
+
+    def __init__(self, sampling_rate, duration,
+            minimum_frequency, maximum_frequency):
+        """
+        Setup the room impulse computation.
+
+        Parameters
+        ----------
+        sampling_rate : integer
+            Sampling rate in Hz for the time signal.
+        duration: float
+            Time in seconds until which to sample the room impulse response.
+        minimum_frequency: float
+            Minimum sampling frequency
+        maximum_frequency: float
+            Maximum sampling frequency
+
+        """
+        self._number_of_frequencies = int(round(sampling_rate * duration))
+        self._sampling_rate = sampling_rate
+        self._duration = duration
+        self._frequencies = (sampling_rate * np.arange(self._number_of_frequencies) 
+                / self._number_of_frequencies)
+        self._timesteps = np.arange(self._number_of_frequencies) / sampling_rate
+
+        self._maximum_frequency = maximum_frequency
+        self._minimum_frequency = minimum_frequency
+
+        self._frequency_filter_indices = np.flatnonzero(
+                (self._frequencies <= self._maximum_frequency) & 
+                (self._frequencies >= self._minimum_frequency))
+
+        self._high_pass_frequency = 2 * minimum_frequency
+        self._low_pass_frequency = 2 * maximum_frequency
+
+        self._high_pass_order = 4
+        self._low_pass_order = 4
+
+        self._alpha = 0.18  # Tukey window alpha
+
+        
+    @property
+    def number_of_frequencies(self):
+        """Return number of frequencies."""
+        return self._number_of_frequencies
+
+    @property
+    def sampling_rate(self):
+        """Return sampling rate."""
+        return self._sampling_rate
+
+    @property
+    def duration(self):
+        """Return duration."""
+        return self._duration
+
+    @property
+    def timesteps(self):
+        """Return time steps."""
+        return self._timesteps
+
+    @property
+    def frequencies(self):
+        """Return frequencies."""
+        return self._frequencies
+
+    @property
+    def filtered_frequencies(self):
+        """Return the filtered frequencies."""
+        return self.frequencies[
+                self._frequency_filter_indices
+                ]
+
+    @property
+    def maximum_frequency(self):
+        """Return maximum frequency."""
+        return self._maximum_frequency
+
+    @property
+    def minimum_frequency(self):
+        """Return minimum frequency."""
+        return self._minimum_frequency
+
+    @property
+    def high_pass_frequency(self):
+        """Return high pass frequency."""
+        return self._high_pass_frequency
+
+    @high_pass_frequency.setter
+    def high_pass_frequency(self, freq):
+        """Set high pass frequency."""
+        self._high_pass_frequency = freq
+
+    @property
+    def low_pass_frequency(self):
+        """Return low pass frequency."""
+        return self._low_pass_frequency
+
+    @low_pass_frequency.setter
+    def low_pass_frequency(self, freq):
+        """Set low pass frequency."""
+        self._low_pass_frequency = freq
+
+    @property
+    def high_pass_filter_order(self):
+        """Return high pass filter order."""
+        return self._high_pass_order
+
+    @high_pass_filter_order.setter
+    def high_pass_filter_order(self, order):
+        """Set high pass filter order."""
+        self._high_pass_order = order
+
+    @property
+    def low_pass_filter_order(self):
+        """Return low pass filter order."""
+        return self._low_pass_order
+
+    @low_pass_filter_order.setter
+    def low_pass_filter_order(self, order):
+        """Set low pass filter order."""
+        self._low_pass_order = order
+
+
+    def compute_room_impulse_response(
+            self, values_at_filtered_frequencies):
+        """
+        Compute the room impulse response.
+
+        Parameters
+        ----------
+        values_at_filtered_frequencies : array
+            The frequency domain values to be transformed taken
+            at the filtered frequencies.
+
+        Output
+        ------
+        An array of approximate time values at the given time steps.
+        
+        """
+        from scipy.signal import butter, freqz, tukey
+        from scipy.fftpack import ifft
+        
+        b_high, a_high = butter(
+                self.high_pass_filter_order,
+                self.high_pass_frequency * 2 / self.sampling_rate, 
+                'high')
+
+        b_low, a_low = butter(
+                self.low_pass_filter_order,
+                self.low_pass_frequency * 2 / self.sampling_rate, 
+                'low')
+
+        high_pass_values = freqz(
+                b_high, a_high, self.filtered_frequencies,
+                fs=self.sampling_rate)[1]
+
+        low_pass_values = freqz(
+                b_low, a_low, self.filtered_frequencies,
+                fs=self.sampling_rate)[1]
+
+        butter_filtered_values = (values_at_filtered_frequencies * 
+                np.conj(low_pass_values) * np.conj(high_pass_values))
+
+        # windowed_values = butter_filtered_values * tukey(len(self.filtered_frequencies),
+        #         min([self.maximum_frequency - self.low_pass_frequency,
+        #              self.high_pass_frequency - self.minimum_frequency]) /
+        #         (self.maximum_frequency - self.minimum_frequency))
+
+        windowed_values = butter_filtered_values * tukey(len(self.filtered_frequencies), alpha=self._alpha)
+
+        full_frequency_values = np.zeros(self.number_of_frequencies, dtype='complex128')
+        full_frequency_values[self._frequency_filter_indices] = windowed_values
+        full_frequency_values[-self._frequency_filter_indices] = np.conj(windowed_values)
+
+        return ifft((full_frequency_values)) * self.number_of_frequencies
+
+# def compute_ir(fmin = 20,fmax=200,df,p):
+#     """
+#     Compute the room impulse response.
+
+#     Parameters
+#     ----------
+#     values_at_filtered_frequencies : array
+#         The frequency domain values to be transformed taken
+#         at the filtered frequencies.
+
+#     Output
+#     ------
+#     An array of approximate time values at the given time steps.
+    
+#     """
+    
+#     from scipy.signal import butter, freqz, tukey
+#     from scipy.fftpack import ifft
+    
+#     high_pass_filter_order = 2
+#     high_pass_frequency = fmin
+#     low_pass_frequency = fmax
+#     alpha = 4
+#     sampling_rate = 44100
+#     b_high, a_high = butter(
+#             high_pass_filter_order,
+#             high_pass_frequency * 2 / sampling_rate, 
+#             'high')
+
+#     b_low, a_low = butter(
+#             high_pass_filter_order,
+#             low_pass_frequency * 2 / sampling_rate, 
+#             'low')
+
+#     high_pass_values = freqz(
+#             b_high, a_high, filtered_frequencies,
+#             fs=sampling_rate)[1]
+
+#     low_pass_values = freqz(
+#             b_low, a_low, filtered_frequencies,
+#             fs=sampling_rate)[1]
+
+#     butter_filtered_values = (values_at_filtered_frequencies * 
+#             _np.conj(low_pass_values) * _np.conj(high_pass_values))
+
+#     # windowed_values = butter_filtered_values * tukey(len(self.filtered_frequencies),
+#     #         min([self.maximum_frequency - self.low_pass_frequency,
+#     #              self.high_pass_frequency - self.minimum_frequency]) /
+#     #         (self.maximum_frequency - self.minimum_frequency))
+
+#     windowed_values = butter_filtered_values * tukey(len(filtered_frequencies), alpha=alpha)
+
+#     full_frequency_values = _np.zeros(self.number_of_frequencies, dtype='complex128')
+#     full_frequency_values[self._frequency_filter_indices] = windowed_values
+#     full_frequency_values[-self._frequency_filter_indices] = _np.conj(windowed_values)
+
+#     return ifft(_np.conj(full_frequency_values)) * self.number_of_frequencies

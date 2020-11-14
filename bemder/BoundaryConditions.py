@@ -6,6 +6,8 @@ class BC():
         self.AC = AC
         self.mu = {}
         self.v = {}
+        self.rhoc = []
+        self.cc = []
     
     def impedance(self,domain_index, impedance):
         """
@@ -109,7 +111,7 @@ class BC():
         
         self.v[domain_index] = np.array(velocity)           
         
-    def delany(self,domain_index,RF,d,model='delany-bazley'):
+    def delany(self,domain_index=None,RF=10900,d=None,model='delany-bazley'):
     
         """
         This function implements th e Delany-Bazley-Miki model for a single porous layers.
@@ -154,12 +156,18 @@ class BC():
             C8=0.530
 
         X = f_range*self.AP.rho0/RF
-        cc = self.AP.c0/(1+C1*np.power(X,-C2) -1j*C3*np.power(X,-C4))
-        rhoc = (self.AP.rho0*self.AP.c0/cc)*(1+C5*np.power(X,-C6)-1j*C7*np.power(X,-C8))
-    
-        Zs = -1j*rhoc*cc/np.tan((w/cc)*d) 
+        cc = np.conj(self.AP.c0/(1+C1*np.power(X,-C2) -1j*C3*np.power(X,-C4)))
+        rhoc = np.conj((self.AP.rho0*self.AP.c0/cc)*(1+C5*np.power(X,-C6)-1j*C7*np.power(X,-C8)))
         
-        self.mu[domain_index] = np.array(1/Zs)
+        if d == None:
+            self.cc = np.conj(cc)
+            self.rhoc = np.conj(rhoc)
+            return
+        else:
+            Zs = -1j*rhoc*cc/np.tan((w/cc)*d) 
+            
+            self.mu[domain_index] = np.array(1/Zs)
+
         
 
             

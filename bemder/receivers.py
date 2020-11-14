@@ -70,7 +70,7 @@ class Receiver():
         
     def arc_receivers(self, radius = 1.0, ns = 10, angle_span = (-90, 90), d = 0, axis = "x" ):
         points = {}
-        theta = np.linspace(angle_span[0]*np.pi/180, angle_span[1]*np.pi/180, ns)
+        theta = np.arange(angle_span[0]*np.pi/180, (angle_span[1]+ns)*np.pi/180, ns*np.pi/180)
         for i in range(len(theta)):
             thetai = theta[i]
             # compute x1 and x2
