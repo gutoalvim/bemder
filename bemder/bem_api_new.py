@@ -2167,6 +2167,7 @@ class CoupledBEM:
         self.S = S
         self.R = R
         self.BC = BC
+        self.EoI = 2
         self.v = 0
         self.IS = IS
         self.assembler = assembler
@@ -2178,6 +2179,7 @@ class CoupledBEM:
                 helpers.set_cpu()
             if device == "gpu":
                 helpers.set_cpu()
+        self.bd = {}
                 
         if individual_sources==True:
             for fi in range(np.size(self.f_range)):
@@ -2236,7 +2238,7 @@ class CoupledBEM:
 
                             pos  = np.linalg.norm(r-r0)
                             
-                            val  = q*np.exp(1j*k*pos)/(4*np.pi*pos)
+                            val  = q*np.exp(1j*k*pos)/(pos)
                             result[0]= val / (pos**2) * (1j * k * pos - 1) * np.dot(r-r0, n)
                             
                         @bempp.api.callable(complex=True,jit=True,parameterized=True)
@@ -2246,7 +2248,7 @@ class CoupledBEM:
                             q = parameters[4]
         
                             pos  = np.linalg.norm(r-r0)
-                            result[0]  = q*np.exp(1j*k*pos)/(4*np.pi*pos)
+                            result[0]  = q*np.exp(1j*k*pos)/(pos)
                         
                     else:
                         raise TypeError("Wavetype must be plane or spherical") 
@@ -2278,10 +2280,10 @@ class CoupledBEM:
                     rhs = mtf*[rhs_bem_e,rhs_bem_i]
 
                 
-                    boundD, info = bempp.api.linalg.gmres(mtf_sqrt, rhs, tol=1E-5)#, use_strong_form=True)
+                    CBD, info = bempp.api.linalg.gmres(mtf_sqrt, rhs, tol=1E-5)#, use_strong_form=True)
             
                     
-                    self.boundData[icc] = [boundD[0], boundD[1]]
+                    self.boundData[icc] = [CBD[0], CBD[1]]
                     # u[fi] = boundU
                     
                     self.IS = 1
@@ -2302,7 +2304,6 @@ class CoupledBEM:
     
                 rhoc_f = self.BC.rhoc[fi]
                 cc_f = np.conj(self.BC.cc[fi])
-                self.boundData = {}  
                 f = self.f_range[fi] #Convert index to frequency
                 k = 2*np.pi*f/self.c0 # Calculate wave number
                 kc = 2*np.pi*f/cc_f
@@ -2353,8 +2354,8 @@ class CoupledBEM:
 
                         pos  = np.linalg.norm(r-r0)
                         
-                        val  = q*np.exp(1j*k*pos)/(4*np.pi*pos)
-                        result[0]= val / (pos**2) * (1j * k * pos - 1) * np.dot(r-r0, n)
+                        val  = q*np.exp(1j*k*pos)/(pos)
+                        result[0]= np.dot(r-r0,n)*(1j*k*pos-1)*q*np.exp(1j*k*pos)/(pos**3) #val / (pos**2) * (1j * k * pos - 1) * np.dot(r-r0, n)
                         
                     @bempp.api.callable(complex=True,jit=True,parameterized=True)
                     def d_data(r, n, domain_index, result,parameters):
@@ -2363,7 +2364,7 @@ class CoupledBEM:
                         q = parameters[4]
     
                         pos  = np.linalg.norm(r-r0)
-                        result[0]  = q*np.exp(1j*k*pos)/(4*np.pi*pos)
+                        result[0]  = q*np.exp(1j*k*pos)/(pos)
                     
                 else:
                     raise TypeError("Wavetype must be plane or spherical") 
@@ -2394,11 +2395,10 @@ class CoupledBEM:
                 rhs_bem_i = n_fun
                 rhs_bem_e = d_fun
                 rhs = mtf*[rhs_bem_e,rhs_bem_i]
-                boundD, info = bempp.api.linalg.gmres(mtf_sqrt, rhs, tol=1E-5)#, use_strong_form=True
+                CBD, info = bempp.api.linalg.gmres(mtf_sqrt, rhs, tol=1E-5)#, use_strong_form=True
                 
-                self.boundData[fi] = [boundD[0], boundD[1]]
-                # u[fi] = boundU
-                
+                self.boundData[fi] = [CBD[0], CBD[1]]
+          
                 self.IS = 0
                 print('{} / {}'.format(fi+1,np.size(self.f_range)))
                 
@@ -2414,7 +2414,7 @@ class CoupledBEM:
         else:
             for i in range(len(self.r0.T)): 
                 pos = np.linalg.norm(pts-self.r0[:,i].reshape(1,3),axis=1)
-                pInc += self.q.flat[i]*np.exp(1j*(2*np.pi*self.f_range[fi]/self.c0)*pos)/(4*np.pi*pos)
+                pInc += self.q.flat[i]*np.exp(1j*(2*np.pi*self.f_range[fi]/self.c0)*pos)/(pos)
             
         return pInc
     
@@ -2432,7 +2432,7 @@ class CoupledBEM:
         return (pInc)
 
     
-    def point_evaluate(self,boundD,R=R_init):
+    def point_evaluate(self,boundD,R=R_init,printing = False):
         
         """
         Evaluates the solution (pressure) for a point.
@@ -2480,7 +2480,9 @@ class CoupledBEM:
                     pS[i] = pScat
         
                     # print(20*np.log10(np.abs(pT[fi])/2e-5))
-                print('{} / {}'.format(fi+1,np.size(self.f_range)))
+                    
+                if printing:
+                    print('{} / {}'.format(fi+1,np.size(self.f_range)))
                 ppt[fi] = np.array([pT[i] for i in pT.keys()]).reshape(len(pT),len(R.coord))
                 pps[fi] = np.array([pS[i] for i in pS.keys()]).reshape(len(pS),len(R.coord))
             return ppt,pps
@@ -2507,8 +2509,10 @@ class CoupledBEM:
                 
                 pT[fi] = pInc+(pScat)
                 pS[fi] = pScat
-    
-                print(20*np.log10(np.abs(pT[fi])/2e-5))
-                print('{} / {}'.format(fi+1,np.size(self.f_range)))
+                
+                if printing:
+                    
+                    print(20*np.log10(np.abs(pT[fi])/2e-5))
+                    print('{} / {}'.format(fi+1,np.size(self.f_range)))
                 
             return  np.array([pT[i] for i in pT.keys()]).reshape(len(pT),len(R.coord)),np.array([pS[i] for i in pS.keys()]).reshape(len(pS),len(R.coord))
