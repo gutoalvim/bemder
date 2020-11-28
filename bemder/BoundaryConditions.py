@@ -156,8 +156,8 @@ class BC():
             C8=0.530
 
         X = f_range*self.AP.rho0/RF
-        cc = np.conj(self.AP.c0/(1+C1*np.power(X,-C2) -1j*C3*np.power(X,-C4)))
-        rhoc = np.conj((self.AP.rho0*self.AP.c0/cc)*(1+C5*np.power(X,-C6)-1j*C7*np.power(X,-C8)))
+        cc = (self.AP.c0/(1+C1*np.power(X,-C2) -1j*C3*np.power(X,-C4)))
+        rhoc = ((self.AP.rho0*self.AP.c0/cc)*(1+C5*np.power(X,-C6)-1j*C7*np.power(X,-C8)))
         
         if d == None:
             self.cc = np.conj(cc)

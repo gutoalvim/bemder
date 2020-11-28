@@ -249,7 +249,7 @@ def bool_coord_from_geo(path_to_geo,geo_axis,coord_axis,mSize,dilate_amount):
         
         gmsh.model.occ.intersect(tgv, [(2,15000)],15000,True,True)
         
-        gmsh.model.occ.dilate([(2,15000)],0, (ymin+ymax)/2, (zmin+zmax)/2, 0, dilate_amount, dilate_amount)
+        gmsh.model.occ.dilate([(2,15000)],(xmin+xmax)/2, (ymin+ymax)/2, (zmin+zmax)/2, dilate_amount, dilate_amount, dilate_amount)
     gmsh.model.occ.synchronize()
     
     gmsh.model.mesh.generate(2)
@@ -1526,6 +1526,7 @@ class InteriorBEM:
                 
                 a = 1j*k*self.c0*self.rho0
                 icc=0
+                
                 for icc in range(len(self.r0.T)):
                     # self.ir0 = self.r0[:,i].T
         
@@ -2184,7 +2185,7 @@ class CoupledBEM:
         if individual_sources==True:
             for fi in range(np.size(self.f_range)):
                 rhoc_f = self.BC.rhoc[fi]
-                cc_f = np.conj(self.BC.cc[fi])
+                cc_f = (self.BC.cc[fi])
                 self.boundData = {}  
                 f = self.f_range[fi] #Convert index to frequency
                 k = 2*np.pi*f/self.c0 # Calculate wave number
@@ -2193,7 +2194,10 @@ class CoupledBEM:
                 
                 mtf_a = bempp.api.operators.boundary.helmholtz.multitrace_operator(self.grid, k, assembler="dense", device_interface=self.assembler)
                 mtf_p = bempp.api.operators.boundary.helmholtz.multitrace_operator(self.grid, kc, assembler="dense", device_interface=self.assembler)
-                mtf = mtf_a +(self.rho0/rhoc_f)*mtf_p
+                mtf_p[0,1] = mtf_p[0,1]*(rhoc_f/self.rho0)
+                mtf_p[1,0] = mtf_p[1,0]*(self.rho0/rhoc_f)
+                
+                mtf = mtf_a +mtf_p
                 
                 mtf_sqrt = mtf*mtf
                 
@@ -2226,7 +2230,7 @@ class CoupledBEM:
                             ap = np.linalg.norm(r0) 
                             pos = (r[0]*r0[0]+r[1]*r0[1]+r[2]*r0[2])
                             nm = (((n[0])*r0[0]/ap)+((n[1])*r0[1]/ap)+((n[2])*r0[2]/ap))
-                            result[0] = q*1j*k*nm*(np.exp(1j * k * pos/ap))
+                            result[0] = (q*1j*k*nm*(np.exp(1j * k * pos/ap)))/rho
                             
                     elif self.wavetype == "spherical":    
                         @bempp.api.callable(complex=True,jit=True,parameterized=True)
@@ -2235,11 +2239,12 @@ class CoupledBEM:
                             r0 = np.real(parameters[:3])
                             k = parameters[3]
                             q = parameters[4]
+                            rho = parameters[5]
 
                             pos  = np.linalg.norm(r-r0)
                             
                             val  = q*np.exp(1j*k*pos)/(pos)
-                            result[0]= val / (pos**2) * (1j * k * pos - 1) * np.dot(r-r0, n)
+                            result[0]= (val / (pos**2) * (1j * k * pos - 1) * np.dot(r-r0, n))/rho
                             
                         @bempp.api.callable(complex=True,jit=True,parameterized=True)
                         def d_data(r, n, domain_index, result,parameters):
@@ -2265,11 +2270,12 @@ class CoupledBEM:
                                                       function_parameters=function_parameters_mnp)  
                     
                     n_fun = bempp.api.GridFunction.from_zeros(self.n_space)
-                    function_parameters_mnp = np.zeros(5,dtype = 'complex128')     
+                    function_parameters_mnp = np.zeros(6,dtype = 'complex128')     
                    
                     function_parameters_mnp[:3] = self.r0[:,icc]
                     function_parameters_mnp[3] = k
                     function_parameters_mnp[4] = self.q.flat[icc]
+                    function_parameters_mnp[5] = self.rho0
                     
                     n_fun = bempp.api.GridFunction(self.n_space,fun=n_data,
                                                       function_parameters=function_parameters_mnp)
@@ -2303,7 +2309,7 @@ class CoupledBEM:
             for fi in range(np.size(self.f_range)):
     
                 rhoc_f = self.BC.rhoc[fi]
-                cc_f = np.conj(self.BC.cc[fi])
+                cc_f = (self.BC.cc[fi])
                 f = self.f_range[fi] #Convert index to frequency
                 k = 2*np.pi*f/self.c0 # Calculate wave number
                 kc = 2*np.pi*f/cc_f
@@ -2338,11 +2344,12 @@ class CoupledBEM:
                         r0 = np.real(parameters[:3])
                         k = parameters[3]
                         q = parameters[4]
+                        rho = parameters[5]
                             
                         ap = np.linalg.norm(r0) 
                         pos = (r[0]*r0[0]+r[1]*r0[1]+r[2]*r0[2])
                         nm = (((n[0])*r0[0]/ap)+((n[1])*r0[1]/ap)+((n[2])*r0[2]/ap))
-                        result[0] = q*1j*k*nm*(np.exp(1j * k * pos/ap))
+                        result[0] = (q*1j*k*nm*(np.exp(1j * k * pos/ap)))/rho
                         
                 elif self.wavetype == "spherical":    
                     @bempp.api.callable(complex=True,jit=True,parameterized=True)
@@ -2351,11 +2358,12 @@ class CoupledBEM:
                         r0 = np.real(parameters[:3])
                         k = parameters[3]
                         q = parameters[4]
-
+                        rho = parameters[5]
+                        
                         pos  = np.linalg.norm(r-r0)
                         
                         val  = q*np.exp(1j*k*pos)/(pos)
-                        result[0]= np.dot(r-r0,n)*(1j*k*pos-1)*q*np.exp(1j*k*pos)/(pos**3) #val / (pos**2) * (1j * k * pos - 1) * np.dot(r-r0, n)
+                        result[0]= (np.dot(r-r0,n)*(1j*k*pos-1)*q*np.exp(1j*k*pos)/(pos**3))/rho #val / (pos**2) * (1j * k * pos - 1) * np.dot(r-r0, n)
                         
                     @bempp.api.callable(complex=True,jit=True,parameterized=True)
                     def d_data(r, n, domain_index, result,parameters):
@@ -2382,12 +2390,13 @@ class CoupledBEM:
                                                   function_parameters=function_parameters_mnp)  
                 
                 n_fun = bempp.api.GridFunction.from_zeros(self.n_space)
-                function_parameters_mnp = np.zeros(5,dtype = 'complex128')     
+                function_parameters_mnp = np.zeros(6,dtype = 'complex128')     
                
                 for i in range(len(self.r0.T)):
                     function_parameters_mnp[:3] = self.r0[:,i]
                     function_parameters_mnp[3] = k
                     function_parameters_mnp[4] = self.q.flat[i]
+                    function_parameters_mnp[5] = self.rho0
                     
                     n_fun += bempp.api.GridFunction(self.n_space,fun=n_data,
                                                   function_parameters=function_parameters_mnp)
